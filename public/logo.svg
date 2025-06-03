@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="128" height="128">
+  <g id="logogram" transform="translate(0, 0)" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- Left neural path (refined curve) -->
+    <path 
+      d="M2 36C9 36 15 30 15 24C15 18 9 12 2 12V20C4.5 20 6.5 22 6.5 24C6.5 26 4.5 28 2 28V36Z"
+      fill="#FF3F33"
+      stroke="#991B1B"
+      stroke-width="1.5"
+    />
+
+    <!-- Right abstract brain region (with rounder edges) -->
+    <path 
+      d="M42 16.5C39.2 15.6 36.1 15 33 15C21 15 12 24.5 12 36C12 37.2 12.1 38.4 12.3 39.5H26.5C26 38.4 25.8 37.2 25.8 36C25.8 31.3 29.7 27.4 34.5 27.4C37.2 27.4 39.7 28.6 41.5 30.5V16.5Z"
+      fill="#FCEF91"
+      stroke="#CA8A04"
+      stroke-width="1.5"
+    />
+
+    <!-- Top arc for thought halo -->
+    <path 
+      d="M4 2C5 10.5 12.5 18 21.8 18C31 18 38.5 10.5 39.5 2H26.8C26.1 4 24.1 5.5 21.8 5.5C19.5 5.5 17.5 4 16.8 2H4Z"
+      fill="#FB9E3A"
+      stroke="#C2410C"
+      stroke-width="1.5"
+    />
+    
+  </g>
+</svg>
