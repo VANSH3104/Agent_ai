@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertTitle } from '@/components/ui/alert';
+import { FaGithub, FaGoogle } from "react-icons/fa";
 import { OctagonAlertIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -47,6 +48,24 @@ export const SignInView= ()=>{
       setIsLoading(false);
     }
   }
+  const onSocial = async (provider: "github" | "google") => {
+        setError(null);
+        setIsLoading(true); 
+        try {
+          await authClient.signIn.social({
+            provider:provider,
+            callbackURL: '/dashboard'
+          }, {
+            onSuccess: () => {
+            },
+            onError: ({ error }) => {
+              setError(error.message || "");
+            },
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }
   return (
     <div className='flex flex-col gap-6'>
       <Card className='overflow-hidden p-0'>
@@ -124,16 +143,18 @@ export const SignInView= ()=>{
                 <Button
                   variant="outline"
                   type='button'
+                  onClick={()=> onSocial('google')}
                   className='w-full'
                 >
-                  Google
+                  <FaGoogle />
                 </Button>
                 <Button
                   variant="outline"
                   type='button'
+                  onClick={()=> onSocial('github')}
                   className='w-full'
                 >
-                  Github
+                  <FaGithub />
                 </Button>
               </div>
               <div className='text-sm text-muted-foreground text-center'>
