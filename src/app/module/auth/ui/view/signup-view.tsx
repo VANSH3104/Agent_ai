@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertTitle } from '@/components/ui/alert';
+import { FaGithub, FaGoogle } from "react-icons/fa";
 import { OctagonAlertIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -46,6 +47,25 @@ export const SignUpView= ()=>{
         }, {
           onSuccess: () => {
             router.push('/dashboard');
+          },
+          onError: ({ error }) => {
+            setError(error.message || "");
+          },
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    const onSocial = async (provider: "github" | "google") => {
+      setError(null);
+      setIsLoading(true); 
+      try {
+        await authClient.signIn.social({
+          provider:provider,
+          callbackURL: '/dashboard'
+        }, {
+          onSuccess: () => {
+            
           },
           onError: ({ error }) => {
             setError(error.message || "");
@@ -170,17 +190,19 @@ export const SignUpView= ()=>{
                 <Button
                   variant="outline"
                   type='button'
+                  onClick={()=> onSocial('google')}
                   className='w-full'
                 >
-                  Google
+                  <FaGoogle />
                 </Button>
                 <Button
-                  variant="outline"
-                  type='button'
-                  className='w-full'
-                >
-                  Github
-                </Button>
+                variant="outline"
+                type='button'
+                onClick={()=> onSocial('github')}
+                className='w-full'
+              >
+                <FaGithub />
+              </Button>
               </div>
               <div className='text-sm text-muted-foreground text-center'>
                 Already have an account?{" "}<Link href="/sign-in" className='underline underline-offset-4 '>Sign in</Link>

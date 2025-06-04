@@ -1,17 +1,17 @@
-import { SignUpView } from "@/app/module/auth/ui/view/signup-view";
 import { auth } from "@/lib/auth";
+import { Homeview } from "../module/Home/ui/views/home-view";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 const page = async()=>{
     const session = await auth.api.getSession({
-            headers: await headers(),
-        })
-        if(!!session){
-            redirect("/dashboard")
-        }
+        headers: await headers(),
+    })
+    if(!session){
+        redirect("/sign-in")
+    }
     return (
-        <SignUpView/>
+        <Homeview/>
     )
 }
 export default page;
