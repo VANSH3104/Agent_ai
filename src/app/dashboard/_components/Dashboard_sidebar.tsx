@@ -5,9 +5,9 @@ import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
+import { DashUserButton } from "./DashUserButton"
 
 // Menu items.
 const items = [
@@ -50,18 +51,17 @@ const items = [
 export function AppSidebar() {
   return (
     <Sidebar>
-        <SidebarHeader className="flex space-x-3 text-sidebar-accent-foreground">
+        <SidebarHeader className="flex space-x-3 p-2 text-sidebar-accent-foreground ">
         <Link href="/" className="flex items-center space-x-2">
         <Image src="/logo.svg" height={36} width={36} alt="Agent-Ai" />
-        <p className="text-xl font-semibold select-none">Agent-Ai</p>
+        <p className="text-xl font-semibold">Agent-Ai</p>
         </Link>
         </SidebarHeader>
-        <div>
-         <Separator className="opacity-10 text-blue-500 " />        
+        <div className="px-4 ">
+         <Separator className="opacity-10 text-blue-500" />        
         </div>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -70,7 +70,7 @@ export function AppSidebar() {
                         asChild
                         className={cn(
                             "h-10 border border-transparent hover:border-[#5D6B68]/10",
-                            "hover:bg-gradient-to-r hover:from-[var(--sidebar-accent)] hover:via-[rgba(var(--sidebar-accent-rgb),0.7)] hover:to-[rgba(var(--sidebar-foreground-rgb),0.8)]"
+                            "hover:bg-gradient-to-r hover:from-[var(--sidebar-accent)]"
                         )}
                         >
                     <a href={item.url}>
@@ -84,6 +84,11 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <div className="flex items-center justify-between p-3 text-sidebar-accent-foreground">
+            <DashUserButton />
+        </div>
+      </SidebarFooter>
     </Sidebar>
   )
 }
