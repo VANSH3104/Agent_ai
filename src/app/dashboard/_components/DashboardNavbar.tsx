@@ -19,7 +19,7 @@ export const DashboardNavbar =()=> {
         return () => {
             document.removeEventListener("keydown", down);
         }
-    },[])
+    },[]);
   return (
     <>
     <DashboardCommand open={commandOpen} setOpen={setCommandOpen} />
