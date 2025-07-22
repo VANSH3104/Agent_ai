@@ -1,7 +1,6 @@
 "use client"
 
-import { Calendar, Home, Inbox, Search, Settings } from "lucide-react"
-
+import { Home } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -18,37 +17,37 @@ import Image from "next/image"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
 import { DashUserButton } from "./DashUserButton"
-
-// Menu items.
+import { usePathname } from "next/navigation"
 const items = [
   {
     title: "Home",
-    url: "#",
+    url: "/dashboard",
     icon: Home,
   },
   {
     title: "Agent",
     url: "dashboard/agents", 
-    icon: Inbox,
+    icon: Home
   },
-  {
-    title: "Calendar",
-    url: "#",
-    icon: Calendar,
-  },
-  {
-    title: "Search",
-    url: "#",
-    icon: Search,
-  },
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings,
-  },
+  // {
+  //   title: "Calendar",
+  //   url: "#",
+  //   icon: Calendar,
+  // },
+  // {
+  //   title: "Search",
+  //   url: "#",
+  //   icon: Search,
+  // },
+  // {
+  //   title: "Settings",
+  //   url: "#",
+  //   icon: Settings,
+  // },
 ]
 
 export function AppSidebar() {
+  const pathname = usePathname()
   return (
     <Sidebar>
         <SidebarHeader className="flex space-x-3 p-2 text-sidebar-accent-foreground ">
@@ -61,25 +60,39 @@ export function AppSidebar() {
          <Separator className="opacity-10 text-blue-500" />        
         </div>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="pt-5">
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {items.map((item) => {
+                const isActive = pathname === item.url;
+                return (
+                  <SidebarMenuItem
+                  key={item.title}
+                  className={cn(
+                    "rounded-md transition-all duration-200",
+                    isActive
+                      ? "bg-gradient-to-r from-[var(--sidebar-accent)] to-[bg-purple-300] text-white"
+                      : "text-sidebar-accent-foreground"
+                  )}
+                >
                   <SidebarMenuButton
-                        asChild
-                        className={cn(
-                            "h-10 border border-transparent hover:border-[#5D6B68]/10",
-                            "hover:bg-gradient-to-r hover:from-[var(--sidebar-accent)]"
-                        )}
-                        >
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
+                    asChild
+                    className={cn(
+                      "h-10 w-full px-3 flex items-center gap-2 rounded-md transition-all duration-200",
+                      "hover:border hover:border-[#5D6B68]/10",
+                      "hover:bg-gradient-to-r hover:from-[var(--sidebar-accent)] hover:to-[bg-purple-300]",
+                      "hover:text-white"
+                    )}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-5 w-5" />
+                      <span className="text-sm font-medium">{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+
+                )
+})}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

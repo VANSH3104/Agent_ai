@@ -104,14 +104,14 @@ export const DashUserButton = () => {
         </div>
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem
+        {/* <DropdownMenuItem
           className="flex justify-between items-center px-4 py-2 hover:bg-muted/30 cursor-pointer text-sm"
           onClick={() => router.push('/billing')}
         >
           <span>Billing</span>
           <CreditCardIcon className="w-5 h-5 text-muted-foreground" />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        </DropdownMenuItem> */}
+        {/* <DropdownMenuSeparator /> */}
         <DropdownMenuItem
           onClick={() =>
             authClient.signOut({
