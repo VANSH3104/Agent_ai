@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/ui/sidebar'
 import { PanelLeftCloseIcon, PanelLeftIcon, SearchIcon } from 'lucide-react'
 import { DashboardCommand } from './DashboardCommand'
+import { usePathname } from 'next/navigation'
 
 export const DashboardNavbar =()=> {
+    const pathname = usePathname();
     const { state , toggleSidebar , isMobile} = useSidebar();
     const [commandOpen, setCommandOpen] = useState(false);
     useEffect(()=>{
@@ -21,6 +23,7 @@ export const DashboardNavbar =()=> {
             document.removeEventListener("keydown", down);
         }
     },[]);
+    const isActive = pathname != "/dashboard"
   return (
     <>
     <DashboardCommand open={commandOpen} setOpen={setCommandOpen} />
@@ -28,6 +31,7 @@ export const DashboardNavbar =()=> {
         <Button className='size-9' variant="outline" onClick={toggleSidebar}>
             {(state ==="collapsed" || isMobile) ?<PanelLeftIcon className='size-4' /> : <PanelLeftCloseIcon className='size-4'/>}
         </Button>
+        {!isActive && (<>
         <Button className='h-9 justify-start font-normal text-muted-foreground hover:text-muted-foreground w-[240px]' variant="outline" size="sm" onClick={()=>setCommandOpen(open => !open)}> 
             <SearchIcon />
             search
@@ -35,6 +39,7 @@ export const DashboardNavbar =()=> {
                 <span className='text-xs'>&#8984;</span> K
             </kbd>
         </Button>
+        </>)}
     </nav>
     </>
   )
