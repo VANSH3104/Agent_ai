@@ -18,6 +18,7 @@ import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
 import { DashUserButton } from "./DashUserButton"
 import { usePathname } from "next/navigation"
+import { AgentDialog } from "./AgentDialog"
 const items = [
   {
     title: "Home",
@@ -93,6 +94,9 @@ export function AppSidebar() {
 
                 )
 })}
+           <div className="pt-3 flex justify-center">
+           <AgentDialog />
+          </div>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

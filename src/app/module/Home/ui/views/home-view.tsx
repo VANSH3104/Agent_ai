@@ -5,7 +5,7 @@ import React from 'react'
 
 export const Homeview=()=> {
     const trpc = useTRPC();
-    const { data } = useQuery(trpc.aiAgents.getMany.queryOptions())
+    const { data } = useQuery(trpc.workflow.getMany.queryOptions())
   return (
     <div>
       {JSON.stringify(data, null, 2)}
