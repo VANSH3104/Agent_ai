@@ -32,7 +32,7 @@ export const agentsRouter = createTRPCRouter({
             userId: ctx.user.user.id
           })
           .returning();
-
+          
         return insertedWorkflow;
       } catch (error) {
         console.error("Error creating workflow:", error);

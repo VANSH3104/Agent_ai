@@ -14,27 +14,23 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { CiSquarePlus } from "react-icons/ci"
+import { useTRPC } from "@/trpc/client"
+import { useRouter } from "next/navigation"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 export function AgentDialog() {
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const name = formData.get("name")
-    const description = formData.get("description")
-
-    const res = await fetch("/api/workflows", {
-      method: "POST",
-      body: JSON.stringify({ name, description }),
-      headers: {
-        "Content-Type": "application/json"
+  const trpc = useTRPC();
+  const router = useRouter();
+  const queryClient =  useQueryClient();
+   const createWorkflow = useMutation(
+    trpc.workflow.create.mutationOptions({
+      onSuccess:()=>{
+        queryClient.invalidateQueries(
+          trpc.workflow.getMany.
+        )
       }
     })
-
-    if (res.ok) {
-      // TODO: close modal, refresh list, show toast
-      console.log("Workflow created")
-    }
-  }
+   )
 
   return (
     <Dialog>
