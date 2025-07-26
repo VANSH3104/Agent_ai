@@ -1,5 +1,5 @@
 "use client"
-
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,27 +14,33 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { CiSquarePlus } from "react-icons/ci"
-import { useTRPC } from "@/trpc/client"
 import { useRouter } from "next/navigation"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
 
+import { useTRPC } from "@/trpc/client"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { z } from "zod"
+import { WorkflowSchema } from "@/app/module/agents/schema/WorkflowSchema"
 export function AgentDialog() {
-  const trpc = useTRPC();
   const router = useRouter();
-  const queryClient =  useQueryClient();
-   const createWorkflow = useMutation(
+  const trpc = useTRPC();
+  const queryClient = useQueryClient()
+  const [input, setInput] = useState({ name: '', description: '' });
+  const createWorkflow = useMutation(
     trpc.workflow.create.mutationOptions({
-      onSuccess:()=>{
-        queryClient.invalidateQueries(
-          trpc.workflow.getMany.
-        )
-      }
+      onSuccess: ()=>{},
+      onError: ()=> {}
+
     })
-   )
+  )
+  
+  const onSubmit = (values: z.infer<typeof WorkflowSchema>) =>{
+    createWorkflow.mutate(input)
+  }
+
 
   return (
     <Dialog>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={onSubmit}>
         <DialogTrigger asChild>
           <Button className="bg-[var(--sidebar-accent)] hover:bg-purple-500 p-2 font-bold w-full">
             <div className="items-center flex gap-2 font-bold">
@@ -53,11 +59,16 @@ export function AgentDialog() {
           <div className="grid gap-4">
             <div className="grid gap-3">
               <Label htmlFor="name">Workflow Name</Label>
-              <Input id="name" name="name" placeholder="Enter workflow name" />
+              <Input id="name" name="name" placeholder="Enter workflow name"
+              value={input.name} 
+              onChange={(e)=>setInput(prev =>({...prev , name:e.target.value}))}/>
             </div>
             <div className="grid gap-3">
               <Label htmlFor="description">Description</Label>
-              <Input id="description" name="description" placeholder="Workflow description" />
+              <Input id="description" name="description" placeholder="Workflow description"
+              value={input.description} 
+              onChange={(e)=>setInput(prev =>({...prev , description:e.target.value}))}
+              />
             </div>
           </div>
           <DialogFooter>

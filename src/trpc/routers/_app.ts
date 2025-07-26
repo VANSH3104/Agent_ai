@@ -1,7 +1,7 @@
 import { createTRPCRouter } from '../init';
-import { agentsRouter } from '@/app/module/agents/server/process';
+import { Workflowrouter } from '@/app/module/agents/server/process';
 export const appRouter = createTRPCRouter({
-  workflow: agentsRouter
+  workflow: Workflowrouter
 });
 // export type definition of API
 export type AppRouter = typeof appRouter;

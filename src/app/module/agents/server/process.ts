@@ -1,9 +1,16 @@
 import { db } from "@/db";
 import { workflows } from "@/db/schema";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { WorkflowSchema } from "../schema/WorkflowSchema";
 
-export const agentsRouter = createTRPCRouter({
+export const Workflowrouter = createTRPCRouter({
+
+  getOne: baseProcedure.input(z.object({id:z.string()})).query(async ({input})=>{
+    const [existing] = await db.select().from(workflows).where(eq(workflows.id , input.id))
+    return existing;
+  }),
   getMany: baseProcedure.query(async () => {
     try {
       const data = await db.select().from(workflows);
@@ -16,10 +23,7 @@ export const agentsRouter = createTRPCRouter({
 
   create: protectedProcedure
     .input(
-      z.object({
-        name: z.string().min(1, "Name is required"),
-        description: z.string().optional(),
-      })
+      WorkflowSchema
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -27,8 +31,7 @@ export const agentsRouter = createTRPCRouter({
         const [insertedWorkflow] = await db
           .insert(workflows)
           .values({
-            name: input.name,
-            description: input.description || "",
+            ...input,
             userId: ctx.user.user.id
           })
           .returning();
