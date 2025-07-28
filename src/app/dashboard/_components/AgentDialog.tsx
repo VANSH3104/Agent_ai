@@ -14,7 +14,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { CiSquarePlus } from "react-icons/ci"
-// import { useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 import { useTRPC } from "@/trpc/client"
 import { useMutation} from "@tanstack/react-query"
@@ -22,7 +22,7 @@ import { z } from "zod"
 import { WorkflowSchema } from "@/app/module/agents/schema/WorkflowSchema"
 
 export function AgentDialog() {
-  // const router = useRouter();
+  const router = useRouter();
   const trpc = useTRPC();
   // const queryClient = useQueryClient()
   const [input, setInput] = useState({ name: '', description: '' });
@@ -30,9 +30,14 @@ export function AgentDialog() {
 
   const createWorkflow = useMutation(
     trpc.workflow.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (data) => {
         setOpen(false);
         setInput({ name: '', description: '' });
+        if (data?.id) {
+        router.push(`/workflow/${data.id}`);
+      } else {
+        alert("No ID returned from server");
+      }
       },
       onError: () => {}
     })
@@ -47,8 +52,6 @@ export function AgentDialog() {
       } catch {
           alert("there is mistake")
       }
-      
-      // router.push(`/workflow/${}`)
     } catch {
       alert("there is mistake 2")
     }
