@@ -18,16 +18,24 @@ export const WorkflowBuilder = () => {
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
 
   useEffect(() => {
-    if (selectedNode && window.innerWidth < 1024) {
+    if (selectedNode) {
       setIsPropertiesOpen(true);
+    } else {
+      setIsPropertiesOpen(false);
     }
   }, [selectedNode]);
+
+  const handleCloseProperties = () => {
+    setIsPropertiesOpen(false);
+    setSelectedNode(null); // Clear selection when closing
+  };
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <NavbarWork />
 
       <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile menu button */}
         <button
           className="lg:hidden fixed top-20 left-4 z-30 p-2 bg-white rounded-md shadow-md border border-gray-200"
           onClick={() => setIsSidebarOpen(true)}
@@ -65,10 +73,9 @@ export const WorkflowBuilder = () => {
           setNodes={setNodes}
           setConnections={setConnections}
           isOpen={isPropertiesOpen}
-          setIsOpen={setIsPropertiesOpen}
+          setIsOpen={handleCloseProperties} // Use the handler here
         />
-
-        {selectedNode && (
+        {selectedNode && !isPropertiesOpen && (
           <button
             className="lg:hidden fixed top-20 right-4 z-30 p-2 bg-white rounded-md shadow-md border border-gray-200"
             onClick={() => setIsPropertiesOpen(true)}
