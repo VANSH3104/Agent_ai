@@ -1,13 +1,14 @@
 import React, { useRef, useState, useCallback } from 'react';
+import { nanoid } from 'nanoid';
 import { ConnectionLines } from './ConnectionLines';
 import { NodesRenderer } from './NodesRenderer';
 import { EmptyState } from './EmptyState';
+import { CanvasProps } from './schema/canvasschema';
 
-
-export const Canvas = ({ 
-  nodes, 
-  connections, 
-  selectedNode, 
+export const Canvas = ({
+  nodes,
+  connections,
+  selectedNode,
   setSelectedNode,
   isConnecting,
   setIsConnecting,
@@ -17,12 +18,12 @@ export const Canvas = ({
   setDraggedNode,
   setNodes,
   setConnections
-}) => {
-  const canvasRef = useRef(null);
-  const [touchStart, setTouchStart] = useState(null);
+}: CanvasProps) => {
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleCanvasClick = useCallback((e) => {
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === canvasRef.current) {
       setSelectedNode(null);
       if (isConnecting) {
@@ -32,31 +33,34 @@ export const Canvas = ({
     }
   }, [isConnecting, setSelectedNode, setIsConnecting, setConnectionStart]);
 
-  const handleNodeDrop = useCallback((e) => {
+  const createNode = (x: number, y: number) => {
+    return {
+      id: nanoid(12),
+      workflowId: "test-workflow-id", // ✅ test value
+      type: draggedNode?.id ?? "unknown",
+      name: draggedNode?.name ?? "Unnamed Node",
+      position:{ x,y},
+      parameters: JSON.stringify({}),
+      credentials: null,
+      subWorkflowId: null,
+      createdAt: new Date()
+    };
+  };
+
+  const handleNodeDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (!draggedNode) return;
+    if (!draggedNode || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const newNode = {
-      id: Date.now().toString(),
-      type: draggedNode.id,
-      name: draggedNode.name,
-      icon: draggedNode.icon,
-      color: draggedNode.color,
-      x: Math.max(0, x - 75),
-      y: Math.max(0, y - 40),
-      width: 150,
-      height: 80
-    };
-
+    const newNode = createNode(x, y);
     setNodes(prev => [...prev, newNode]);
     setDraggedNode(null);
   }, [draggedNode, setNodes, setDraggedNode]);
 
-  const handleTouchStart = useCallback((e) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (draggedNode) {
       const touch = e.touches[0];
       setTouchStart({ x: touch.clientX, y: touch.clientY });
@@ -64,35 +68,24 @@ export const Canvas = ({
     }
   }, [draggedNode]);
 
-  const handleTouchMove = useCallback((e) => {
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (isDragging && touchStart) {
       e.preventDefault();
     }
   }, [isDragging, touchStart]);
 
-  const handleTouchEnd = useCallback((e) => {
-    if (isDragging && touchStart && draggedNode) {
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (isDragging && touchStart && draggedNode && canvasRef.current) {
       const touch = e.changedTouches[0];
       const rect = canvasRef.current.getBoundingClientRect();
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
 
       if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-        const newNode = {
-          id: Date.now().toString(),
-          type: draggedNode.id,
-          name: draggedNode.name,
-          icon: draggedNode.icon,
-          color: draggedNode.color,
-          x: Math.max(0, x - 75),
-          y: Math.max(0, y - 40),
-          width: 150,
-          height: 80
-        };
-
+        const newNode = createNode(x, y);
         setNodes(prev => [...prev, newNode]);
       }
-      
+
       setDraggedNode(null);
       setTouchStart(null);
       setIsDragging(false);
@@ -117,7 +110,7 @@ export const Canvas = ({
       >
         <ConnectionLines connections={connections} />
 
-        <NodesRenderer 
+        <NodesRenderer
           nodes={nodes}
           selectedNode={selectedNode}
           setSelectedNode={setSelectedNode}
@@ -133,7 +126,7 @@ export const Canvas = ({
         {isDragging && draggedNode && (
           <div className="lg:hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
             <div className={`p-3 rounded-lg ${draggedNode.color} text-white shadow-lg`}>
-              <draggedNode.icon size={24} />
+              {React.createElement(draggedNode.icon, { size: 24 })}
             </div>
           </div>
         )}
