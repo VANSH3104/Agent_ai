@@ -36,7 +36,7 @@ export const Canvas = ({
   const createNode = (x: number, y: number) => {
     return {
       id: nanoid(12),
-      workflowId: "test-workflow-id", // ✅ test value
+      workflowId: "test-workflow-id",
       type: draggedNode?.id ?? "unknown",
       name: draggedNode?.name ?? "Unnamed Node",
       position:{ x,y},

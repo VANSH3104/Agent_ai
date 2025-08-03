@@ -17,7 +17,6 @@ export const NodeLibraryItem = ({ nodeType, setDraggedNode, onMobileAdd }) => {
       setDraggedNode(nodeType);
     }
   };
-
   return (
     <div
       draggable={!isMobile}

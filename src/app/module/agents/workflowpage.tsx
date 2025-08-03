@@ -16,7 +16,6 @@ export const WorkflowBuilder = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
-
   useEffect(() => {
     if (selectedNode) {
       setIsPropertiesOpen(true);
@@ -27,7 +26,7 @@ export const WorkflowBuilder = () => {
 
   const handleCloseProperties = () => {
     setIsPropertiesOpen(false);
-    setSelectedNode(null); // Clear selection when closing
+    setSelectedNode(null);
   };
 
   return (
@@ -35,7 +34,6 @@ export const WorkflowBuilder = () => {
       <NavbarWork />
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Mobile menu button */}
         <button
           className="lg:hidden fixed top-20 left-4 z-30 p-2 bg-white rounded-md shadow-md border border-gray-200"
           onClick={() => setIsSidebarOpen(true)}
@@ -60,7 +58,7 @@ export const WorkflowBuilder = () => {
           isConnecting={isConnecting}
           setIsConnecting={setIsConnecting}
           connectionStart={connectionStart}
-          setConnectionStart={setConnectionStart}
+          setConnectionStart={setConnectionStart} 
           draggedNode={draggedNode}
           setDraggedNode={setDraggedNode}
           setNodes={setNodes}
