@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { Connection } from '../schema/interfaces';
 
 export const PropertiesPanel = ({
   selectedNode,
@@ -17,7 +18,7 @@ export const PropertiesPanel = ({
   };
 
   if (!selectedNode) return null;
-
+  console.log(selectedNode , "node")
   return (
     <>
       {isOpen && (

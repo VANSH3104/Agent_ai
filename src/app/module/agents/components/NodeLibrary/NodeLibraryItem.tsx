@@ -1,8 +1,16 @@
-import React from 'react';
+"use client";
+import React, { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
+
 //@ts-ignore
 export const NodeLibraryItem = ({ nodeType, setDraggedNode, onMobileAdd }) => {
-  const isMobile = window.innerWidth < 1024;
+  const [isMobile, setIsMobile] = useState(false); // ← This line was missing
+
+  useEffect(() => {
+    // Only runs on client
+    setIsMobile(window.innerWidth < 1024);
+  }, []);
+
   const IconComponent = nodeType.icon;
 
   const handleClick = () => {
@@ -17,6 +25,7 @@ export const NodeLibraryItem = ({ nodeType, setDraggedNode, onMobileAdd }) => {
       setDraggedNode(nodeType);
     }
   };
+
   return (
     <div
       draggable={!isMobile}

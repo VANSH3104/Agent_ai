@@ -9,7 +9,7 @@ export const Workflowrouter = createTRPCRouter({
 
   getOne: baseProcedure.input(z.object({id:z.string()})).query(async ({input})=>{
     const [existing] = await db.select().from(workflows).where(eq(workflows.id , input.id))
-    return existing;
+    return existing;  
   }),
   getMany: baseProcedure.query(async () => {
     try {

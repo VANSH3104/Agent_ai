@@ -31,7 +31,7 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
       setIsConnecting(false);
       setConnectionStart(null);
     } else {
-      setSelectedNode(node.id);
+      setSelectedNode(node.name);
     }
   };
 
@@ -44,7 +44,7 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
   return (
     <>
       {nodes.map((node) => {
-        const IconComponent = node.icon;
+        // const IconComponent = node.icon;
         const isSelected = selectedNode === node.id;
 
         return (
@@ -63,9 +63,9 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
             onClick={(e) => handleNodeClick(node, e)}
           >
             <div className="p-3 h-full flex flex-col justify-center items-center">
-              <div className={`p-2 rounded-md ${node.color} text-white mb-2`}>
+              {/* <div className={`p-2 rounded-md ${node.color} text-white mb-2`}>
                 <IconComponent size={20} />
-              </div>
+              </div> */}
               <span className="text-xs font-medium text-gray-700 text-center line-clamp-2">
                 {node.name}
               </span>

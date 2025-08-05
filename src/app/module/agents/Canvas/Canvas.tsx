@@ -1,3 +1,4 @@
+"use client"
 import React, { useRef, useState, useCallback } from 'react';
 import { nanoid } from 'nanoid';
 import { ConnectionLines } from './ConnectionLines';
@@ -22,7 +23,7 @@ export const Canvas = ({
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-
+  console.log(selectedNode)
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === canvasRef.current) {
       setSelectedNode(null);
