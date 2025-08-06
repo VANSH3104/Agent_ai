@@ -1,10 +1,13 @@
-"use client"
+"use client";
 import React, { useRef, useState, useCallback } from 'react';
-import { nanoid } from 'nanoid';
 import { ConnectionLines } from './ConnectionLines';
 import { NodesRenderer } from './NodesRenderer';
 import { EmptyState } from './EmptyState';
 import { CanvasProps } from './schema/canvasschema';
+import { useParams } from 'next/navigation';
+import { useTRPC } from '@/trpc/client';
+import { useMutation } from '@tanstack/react-query';
+import { Node } from '../schema/interfaces';
 
 export const Canvas = ({
   nodes,
@@ -20,10 +23,12 @@ export const Canvas = ({
   setNodes,
   setConnections
 }: CanvasProps) => {
+  const workflowId  = useParams().id;
+  const trpc = useTRPC();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  console.log(selectedNode)
+
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === canvasRef.current) {
       setSelectedNode(null);
@@ -34,17 +39,30 @@ export const Canvas = ({
     }
   }, [isConnecting, setSelectedNode, setIsConnecting, setConnectionStart]);
 
-  const createNode = (x: number, y: number) => {
+  const { mutate: createNodeMutate, isPending: isCreatingNode } = useMutation(
+    trpc.Noderouter.create.mutationOptions({
+      onSuccess: (createdNode) => {
+        setNodes(prev => [...prev, createdNode as Node]);
+        alert("Node created successfully");
+      },
+      onError: (error) => {
+        console.error("Failed to create node:", error);
+        alert("Failed to create node");
+      }
+    })
+  );
+
+  const createNewNode = (x: number, y: number) => {
+    if (!draggedNode) return null;
+
     return {
-      id: nanoid(12),
-      workflowId: "test-workflow-id",
-      type: draggedNode?.id ?? "unknown",
-      name: draggedNode?.name ?? "Unnamed Node",
-      position:{ x,y},
-      parameters: JSON.stringify({}),
-      credentials: null,
+      workflowId: workflowId as string,
+      type: "Trigger",
+      name: "webhook",
+      position: { x, y },
+      parameters: {},
+      credentials: {},
       subWorkflowId: null,
-      createdAt: new Date()
     };
   };
 
@@ -56,10 +74,12 @@ export const Canvas = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const newNode = createNode(x, y);
-    setNodes(prev => [...prev, newNode]);
+    const newNodeData = createNewNode(x, y);
+    if (newNodeData) {
+      createNodeMutate(newNodeData);
+    }
     setDraggedNode(null);
-  }, [draggedNode, setNodes, setDraggedNode]);
+  }, [draggedNode, createNodeMutate, setDraggedNode]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (draggedNode) {
@@ -83,15 +103,17 @@ export const Canvas = ({
       const y = touch.clientY - rect.top;
 
       if (x >= 0 && y >= 0 && x <= rect.width && y <= rect.height) {
-        const newNode = createNode(x, y);
-        setNodes(prev => [...prev, newNode]);
+        const newNodeData = createNewNode(x, y);
+        if (newNodeData) {
+          createNodeMutate(newNodeData);
+        }
       }
 
       setDraggedNode(null);
       setTouchStart(null);
       setIsDragging(false);
     }
-  }, [isDragging, touchStart, draggedNode, setNodes, setDraggedNode]);
+  }, [isDragging, touchStart, draggedNode, createNodeMutate, setDraggedNode]);
 
   return (
     <div className="flex-1 relative overflow-hidden">

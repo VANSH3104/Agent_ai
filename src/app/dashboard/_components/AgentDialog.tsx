@@ -39,7 +39,9 @@ export function AgentDialog() {
         alert("No ID returned from server");
       }
       },
-      onError: () => {}
+      onError: () => {
+        alert("failed to create workflow try again");
+      }
     })
   )
     

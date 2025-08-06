@@ -3,7 +3,7 @@ import { CanvasProps } from './schema/canvasschema';
 import { Node, Connection } from '../schema/interfaces';
 
 export const NodesRenderer: React.FC<CanvasProps> = ({
-  nodes,
+  Nodeid
   selectedNode,
   setSelectedNode,
   isConnecting,
@@ -14,7 +14,6 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
 }) => {
   const handleNodeClick = (node: Node, e: React.MouseEvent) => {
     e.stopPropagation();
-
     if (isConnecting && connectionStart && connectionStart !== node.id) {
       const fromNode = nodes.find((n) => n.id === connectionStart);
       if (!fromNode) return;

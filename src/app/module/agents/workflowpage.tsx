@@ -28,7 +28,7 @@ export const WorkflowBuilder = () => {
     setIsPropertiesOpen(false);
     setSelectedNode(null);
   };
-
+  console.log(nodes ,"bbbb")
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <NavbarWork />

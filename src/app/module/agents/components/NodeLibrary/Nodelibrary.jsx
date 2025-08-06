@@ -28,7 +28,6 @@ export const NodeLibrary = ({ searchTerm, setSearchTerm, setDraggedNode, isOpen,
       width: 150,
       height: 80
     };
-
     setNodes(prev => [...prev, newNode]);
     setIsOpen(false);
   };

@@ -57,18 +57,13 @@ export interface Workflow {
 }
 
 export interface Node {
-  id: string;
   workflowId: string;
   type: string;
   name: string;
-  position: {
-    x: string ,
-    y: string,
-  },
+  position: string,
   parameters: string; // JSON string
   credentials?: string | null; // JSON string
   subWorkflowId?: string | null;
-  createdAt: Date;
 }
 
 export interface Connection {

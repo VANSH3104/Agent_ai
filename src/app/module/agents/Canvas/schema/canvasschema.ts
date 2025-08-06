@@ -10,7 +10,7 @@ export interface DraggedNodeType {
 }
 
 export interface CanvasProps {
-  nodes: Node[];
+  nodeId:  string,
   setNodes: Dispatch<SetStateAction<Node[]>>;
 
   connections: Connection[];
