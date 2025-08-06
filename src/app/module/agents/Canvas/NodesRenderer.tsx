@@ -1,9 +1,12 @@
+"use client";
 import React from 'react';
 import { CanvasProps } from './schema/canvasschema';
 import { Node, Connection } from '../schema/interfaces';
+import { useTRPC } from '@/trpc/client';
+import { useQuery } from '@tanstack/react-query';
 
 export const NodesRenderer: React.FC<CanvasProps> = ({
-  Nodeid
+  id,
   selectedNode,
   setSelectedNode,
   isConnecting,
@@ -12,6 +15,9 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
   setConnectionStart,
   setConnections,
 }) => {
+  const trpc = useTRPC();
+  const { data: nodes = [] } = useQuery(trpc.Noderouter.getMany.queryOptions({ workflowId: id }));
+
   const handleNodeClick = (node: Node, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isConnecting && connectionStart && connectionStart !== node.id) {
@@ -22,15 +28,14 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
         id: Date.now().toString(),
         fromNodeId: fromNode.id,
         toNodeId: node.id,
-        outputIndex: 0
-
+        outputIndex: 0,
       };
 
       setConnections((prev) => [...prev, newConnection]);
       setIsConnecting(false);
       setConnectionStart(null);
     } else {
-      setSelectedNode(node.name);
+      setSelectedNode(node.id);
     }
   };
 
@@ -43,8 +48,16 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
   return (
     <>
       {nodes.map((node) => {
-        // const IconComponent = node.icon;
         const isSelected = selectedNode === node.id;
+        let x = 0;
+        let y = 0;
+        try {
+          const pos = typeof node.position === "string" ? JSON.parse(node.position) : node.position;
+          x = pos?.x ?? 0;
+          y = pos?.y ?? 0;
+        } catch (e) {
+          console.error("Invalid node position", node.position);
+        }
 
         return (
           <div
@@ -53,8 +66,8 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
               isSelected ? 'border-blue-500 shadow-lg' : 'border-gray-200 hover:border-gray-300'
             }`}
             style={{
-              left: node.position.x,
-              top: node.position.y,
+              left: x,
+              top: y,
               width: 100,
               height: 100,
               zIndex: 2,
@@ -62,9 +75,6 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
             onClick={(e) => handleNodeClick(node, e)}
           >
             <div className="p-3 h-full flex flex-col justify-center items-center">
-              {/* <div className={`p-2 rounded-md ${node.color} text-white mb-2`}>
-                <IconComponent size={20} />
-              </div> */}
               <span className="text-xs font-medium text-gray-700 text-center line-clamp-2">
                 {node.name}
               </span>

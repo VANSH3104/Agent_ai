@@ -23,7 +23,8 @@ export const Canvas = ({
   setNodes,
   setConnections
 }: CanvasProps) => {
-  const workflowId  = useParams().id;
+  const params  = useParams();
+  const workflowId = typeof params.id === "string" ? params.id : "";
   const trpc = useTRPC();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
@@ -134,7 +135,7 @@ export const Canvas = ({
         <ConnectionLines connections={connections} />
 
         <NodesRenderer
-          nodes={nodes}
+          id = {workflowId}
           selectedNode={selectedNode}
           setSelectedNode={setSelectedNode}
           isConnecting={isConnecting}
@@ -144,7 +145,7 @@ export const Canvas = ({
           setConnections={setConnections}
         />
 
-        {nodes.length === 0 && <EmptyState />}
+        {/* {nodes.length === 0 && <EmptyState />} */}
 
         {isDragging && draggedNode && (
           <div className="lg:hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
