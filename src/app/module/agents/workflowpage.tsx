@@ -71,7 +71,7 @@ export const WorkflowBuilder = () => {
           setNodes={setNodes}
           setConnections={setConnections}
           isOpen={isPropertiesOpen}
-          setIsOpen={handleCloseProperties} // Use the handler here
+          setIsOpen={handleCloseProperties}
         />
         {selectedNode && !isPropertiesOpen && (
           <button

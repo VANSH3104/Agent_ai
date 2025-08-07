@@ -23,12 +23,15 @@ export const Canvas = ({
   setNodes,
   setConnections
 }: CanvasProps) => {
-  const params  = useParams();
+  const params = useParams();
   const workflowId = typeof params.id === "string" ? params.id : "";
   const trpc = useTRPC();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [draggingNode, setDraggingNode] = useState<Node | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [ghostPosition, setGhostPosition] = useState<{x: number, y: number} | null>(null);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === canvasRef.current) {
@@ -40,15 +43,26 @@ export const Canvas = ({
     }
   }, [isConnecting, setSelectedNode, setIsConnecting, setConnectionStart]);
 
-  const { mutate: createNodeMutate, isPending: isCreatingNode } = useMutation(
+  const { mutate: createNodeMutate } = useMutation(
     trpc.Noderouter.create.mutationOptions({
       onSuccess: (createdNode) => {
         setNodes(prev => [...prev, createdNode as Node]);
-        alert("Node created successfully");
       },
       onError: (error) => {
         console.error("Failed to create node:", error);
-        alert("Failed to create node");
+      }
+    })
+  );
+
+  const { mutate: updateNodeMutate } = useMutation(
+    trpc.Noderouter.update.mutationOptions({
+      onSuccess: (updatedNode) => {
+        setNodes(prev => prev.map(node => 
+          node.id === updatedNode.id ? updatedNode as Node : node
+        ));
+      },
+      onError: (error) => {
+        console.error("Failed to update node:", error);
       }
     })
   );
@@ -81,6 +95,44 @@ export const Canvas = ({
     }
     setDraggedNode(null);
   }, [draggedNode, createNodeMutate, setDraggedNode]);
+
+  const handleDragStart = useCallback((node: Node, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraggingNode(node);
+    
+    const pos = typeof node.position === 'string' ? JSON.parse(node.position) : node.position;
+    setDragOffset({
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y
+    });
+    setGhostPosition(pos);
+    console.log(pos, "gjosuaysa")
+  }, []);
+
+  const handleDrag = useCallback((e: React.MouseEvent) => {
+    if (!draggingNode || !canvasRef.current) return;
+    e.preventDefault();
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left - dragOffset.x;
+    const y = e.clientY - rect.top - dragOffset.y;
+
+    // Only update ghost position, not the actual node
+    setGhostPosition({ x, y });
+  }, [draggingNode, dragOffset]);
+
+  const handleDragEnd = useCallback(() => {
+    if (draggingNode && ghostPosition) {
+      // Update the node position via TRPC
+      console.log(draggingNode.id, "ghostkjk")
+      updateNodeMutate({
+        id: draggingNode.id,
+        position: ghostPosition
+      });
+    }
+    setDraggingNode(null);
+    setGhostPosition(null);
+  }, [draggingNode, ghostPosition, updateNodeMutate]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (draggedNode) {
@@ -124,6 +176,9 @@ export const Canvas = ({
         onClick={handleCanvasClick}
         onDrop={handleNodeDrop}
         onDragOver={(e) => e.preventDefault()}
+        onMouseMove={handleDrag}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={handleDragEnd}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -135,7 +190,7 @@ export const Canvas = ({
         <ConnectionLines connections={connections} />
 
         <NodesRenderer
-          id = {workflowId}
+          id={workflowId}
           selectedNode={selectedNode}
           setSelectedNode={setSelectedNode}
           isConnecting={isConnecting}
@@ -143,7 +198,29 @@ export const Canvas = ({
           setIsConnecting={setIsConnecting}
           setConnectionStart={setConnectionStart}
           setConnections={setConnections}
+          onDragStart={handleDragStart}
         />
+
+        {/* Ghost node for dragging preview */}
+        {draggingNode && ghostPosition && (
+          <div
+            className={`absolute bg-white rounded-lg border-2 border-blue-500 shadow-lg cursor-move`}
+            style={{
+              left: ghostPosition.x,
+              top: ghostPosition.y,
+              width: 100,
+              height: 100,
+              zIndex: 3,
+              opacity: 0.7
+            }}
+          >
+            <div className="p-3 h-full flex flex-col justify-center items-center">
+              <span className="text-xs font-medium text-gray-700 text-center line-clamp-2">
+                {draggingNode.name}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* {nodes.length === 0 && <EmptyState />} */}
 

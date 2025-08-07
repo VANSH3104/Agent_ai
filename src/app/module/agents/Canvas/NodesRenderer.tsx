@@ -5,7 +5,7 @@ import { Node, Connection } from '../schema/interfaces';
 import { useTRPC } from '@/trpc/client';
 import { useQuery } from '@tanstack/react-query';
 
-export const NodesRenderer: React.FC<CanvasProps> = ({
+export const NodesRenderer: React.FC<CanvasProps & { onDragStart: (node: Node, e: React.MouseEvent) => void }> = ({
   id,
   selectedNode,
   setSelectedNode,
@@ -14,6 +14,7 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
   setIsConnecting,
   setConnectionStart,
   setConnections,
+  onDragStart,
 }) => {
   const trpc = useTRPC();
   const { data: nodes = [] } = useQuery(trpc.Noderouter.getMany.queryOptions({ workflowId: id }));
@@ -62,7 +63,7 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
         return (
           <div
             key={node.id}
-            className={`absolute bg-white rounded-lg border-2 shadow-md cursor-pointer transition-all ${
+            className={`absolute bg-white rounded-lg border-2 shadow-md cursor-move transition-all ${
               isSelected ? 'border-blue-500 shadow-lg' : 'border-gray-200 hover:border-gray-300'
             }`}
             style={{
@@ -73,6 +74,12 @@ export const NodesRenderer: React.FC<CanvasProps> = ({
               zIndex: 2,
             }}
             onClick={(e) => handleNodeClick(node, e)}
+            onMouseDown={(e) => {
+              // Only start drag on left mouse button
+              if (e.button === 0) {
+                onDragStart(node, e);
+              }
+            }}
           >
             <div className="p-3 h-full flex flex-col justify-center items-center">
               <span className="text-xs font-medium text-gray-700 text-center line-clamp-2">
