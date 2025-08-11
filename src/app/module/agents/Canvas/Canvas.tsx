@@ -54,18 +54,20 @@ export const Canvas = ({
     })
   );
 
-  const { mutate: updateNodeMutate } = useMutation(
-    trpc.Noderouter.update.mutationOptions({
-      onSuccess: (updatedNode) => {
-        setNodes(prev => prev.map(node => 
-          node.id === updatedNode.id ? updatedNode as Node : node
-        ));
-      },
-      onError: (error) => {
-        console.error("Failed to update node:", error);
-      }
-    })
-  );
+  const { mutate: updatePositionMutate } = useMutation(
+  trpc.Noderouter.updatePosition.mutationOptions({
+    onSuccess: ({ id, position }) => {
+      setNodes(prev =>
+        prev.map(node =>
+          node.id === id ? { ...node, position } : node
+        )
+      );
+    },
+    onError: (error) => {
+      console.error("Failed to update position:", error);
+    },
+  })
+);
 
   const createNewNode = (x: number, y: number) => {
     if (!draggedNode) return null;
@@ -124,15 +126,15 @@ export const Canvas = ({
   const handleDragEnd = useCallback(() => {
     if (draggingNode && ghostPosition) {
       // Update the node position via TRPC
-      console.log(draggingNode.id, "ghostkjk")
-      updateNodeMutate({
+      console.log(draggingNode.id, ghostPosition, "ghostkjk")
+      updatePositionMutate({
         id: draggingNode.id,
         position: ghostPosition
       });
     }
     setDraggingNode(null);
     setGhostPosition(null);
-  }, [draggingNode, ghostPosition, updateNodeMutate]);
+  }, [draggingNode, ghostPosition , updatePositionMutate]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (draggedNode) {

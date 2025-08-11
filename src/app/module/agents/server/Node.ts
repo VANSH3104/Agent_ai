@@ -66,7 +66,7 @@ create: protectedProcedure
           subWorkflowId,
         })
         .returning();
-
+ 
       return {
         ...insertedNode,
         parameters: JSON.parse(insertedNode.parameters),
@@ -77,6 +77,82 @@ create: protectedProcedure
       console.error("Error creating node:", error);
       throw new Error("Failed to create node");
     }
+  }),
+  update: protectedProcedure.input(NodeSchema.partial().extend({
+    id: z.string(),
+  })).mutation(async ({input})=> {
+    try {
+      const { id , ...fields} = input;
+       const updateData: Record<string, unknown> = {};
+      if (fields.name !== undefined) updateData.name = fields.name;
+      if (fields.type !== undefined) updateData.type = fields.type;
+      if (fields.workflowId !== undefined) updateData.workflowId = fields.workflowId;
+      if (fields.position !== undefined)
+        updateData.position = JSON.stringify(fields.position);
+      if (fields.parameters !== undefined)
+        updateData.parameters = JSON.stringify(fields.parameters);
+      if (fields.credentials !== undefined)
+        updateData.credentials = fields.credentials
+          ? JSON.stringify(fields.credentials)
+          : null;
+      if (fields.subWorkflowId !== undefined)
+        updateData.subWorkflowId = fields.subWorkflowId;
+
+      const [updatedNode] = await db
+        .update(nodes)
+        .set(updateData)
+        .where(eq(nodes.id, id))
+        .returning();
+
+      if (!updatedNode) {
+        throw new Error("Node not found");
+      }
+
+      return {
+        ...updatedNode,
+        parameters: JSON.parse(updatedNode.parameters),
+        position: JSON.parse(updatedNode.position),
+        credentials: updatedNode.credentials
+          ? JSON.parse(updatedNode.credentials)
+          : null,
+      };
+    } catch (error) {
+      console.error("Error in updating" , error);
+      throw new Error("failed to update"); 
+    }
+  }),
+  updatePosition: protectedProcedure
+  .input(
+    z.object({
+      id: z.string(),
+      position: z.object({
+        x: z.number(),
+        y: z.number(),
+      }),
+    })
+  )
+  .mutation(async ({ input }) => {
+    const { id, position } = input;
+
+    const [updatedNode] = await db
+      .update(nodes)
+      .set({
+        position: JSON.stringify(position),
+      })
+      .where(eq(nodes.id, id))
+      .returning({
+        id: nodes.id,
+        position: nodes.position,
+      });
+
+    if (!updatedNode) {
+      throw new Error("Node not found");
+    }
+
+    return {
+      id: updatedNode.id,
+      position: JSON.parse(updatedNode.position),
+    };
   }),
 
 });

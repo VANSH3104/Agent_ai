@@ -57,6 +57,7 @@ export interface Workflow {
 }
 
 export interface Node {
+  id: string,
   workflowId: string;
   type: string;
   name: string;
