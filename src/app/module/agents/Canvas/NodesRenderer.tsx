@@ -18,7 +18,7 @@ export const NodesRenderer: React.FC<CanvasProps & { onDragStart: (node: Node, e
 }) => {
   const trpc = useTRPC();
   const { data: nodes = [] } = useQuery(trpc.Noderouter.getMany.queryOptions({ workflowId: id }));
-
+  console.log(nodes , "data")
   const handleNodeClick = (node: Node, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isConnecting && connectionStart && connectionStart !== node.id) {

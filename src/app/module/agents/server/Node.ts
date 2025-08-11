@@ -7,7 +7,7 @@ import { NodeSchema } from "../schema/WorkflowSchema";
 
 export const Noderouter = createTRPCRouter({
 
-  getOne: baseProcedure
+  getOne: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       const [existing] = await db
@@ -26,7 +26,7 @@ export const Noderouter = createTRPCRouter({
         credentials: existing.credentials ? JSON.parse(existing.credentials) : null,
       };
     }),
-  getMany: baseProcedure.query(async () => {
+  getMany: protectedProcedure.query(async () => {
     try {
       const data = await db.select().from(nodes);
       return data.map((node) => ({
