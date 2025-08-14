@@ -45,7 +45,6 @@ export const Canvas = ({
 
   const GRID_SIZE = 20;
   const DRAG_THRESHOLD = 5; // pixels to move before considering it a drag
-
   // Utility function to snap to grid
   const snapPositionToGrid = useCallback((position: { x: number; y: number }) => {
     if (!snapToGrid) return position;
@@ -96,15 +95,14 @@ export const Canvas = ({
       },
     })
   );
-
   const createNewNode = (x: number, y: number) => {
     if (!draggedNode) return null;
 
     const snappedPosition = snapPositionToGrid({ x, y });
     return {
       workflowId: workflowId as string,
-      type: "Trigger",
-      name: "webhook",
+      type: draggedNode.id,
+      name: draggedNode.name,
       position: snappedPosition,
       parameters: {},
       credentials: {},
