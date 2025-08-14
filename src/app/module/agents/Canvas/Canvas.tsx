@@ -269,7 +269,6 @@ export const Canvas = ({
       document.removeEventListener('keyup', handleKeyUp);
     };
   }, [handleKeyDown, handleKeyUp]);
-
   return (
     <div className="flex-1 relative overflow-hidden">
       <div

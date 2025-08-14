@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Connection } from '../schema/interfaces';
+import { WebhookConfigForm } from '../../AgentComponents/webhook/webhook-view';
 
 export const PropertiesPanel = ({
   selectedNode,
@@ -11,7 +12,7 @@ export const PropertiesPanel = ({
   setIsOpen,
 }) => {
   const [activeTab, setActiveTab] = useState<'inputs' | 'params' | 'outputs'>('params');
-  
+  console.log(selectedNode)
   const deleteNode = (nodeId: string) => {
     setNodes((prev: Node[]) => prev.filter(n => n.id !== nodeId));
     setConnections((prev: Connection[]) => prev.filter(c => c.from !== nodeId && c.to !== nodeId));
@@ -141,81 +142,9 @@ export const PropertiesPanel = ({
               <h4 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-200 hidden lg:block">
                 Parameters
               </h4>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Node Name</label>
-                  <input
-                    type="text"
-                    value={selectedNode.name}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    onChange={(e) => {
-                      setNodes(prev => prev.map(n => 
-                        n.id === selectedNode.id ? { ...n, name: e.target.value } : n
-                      ));
-                      setSelectedNode({ ...selectedNode, name: e.target.value });
-                    }}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
-                    placeholder="Add a description for this node..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Timeout (seconds)</label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    placeholder="30"
-                    defaultValue={30}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Retry Count</label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                    placeholder="3"
-                    defaultValue={3}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Environment Variables</label>
-                  <div className="space-y-2">
-                    <div className="flex space-x-2">
-                      <input
-                        type="text"
-                        placeholder="Key"
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Value"
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                      />
-                      <button className="px-2 py-1 text-red-500 hover:bg-red-50 rounded text-sm">×</button>
-                    </div>
-                    <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                      + Add Variable
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                    <span className="text-sm font-medium text-gray-700">Enable Error Handling</span>
-                  </label>
-                </div>
-              </div>
+              <WebhookConfigForm onSubmit={function (data: any): void {
+                throw new Error('Function not implemented.');
+              } } />
             </div>
           </div>
           

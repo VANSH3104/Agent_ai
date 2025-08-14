@@ -37,7 +37,7 @@ export const NodesRenderer: React.FC<CanvasProps & { onDragStart: (node: Node, e
       setIsConnecting(false);
       setConnectionStart(null);
     } else {
-      setSelectedNode(node.id);
+      setSelectedNode(node);
     }
   };
 
