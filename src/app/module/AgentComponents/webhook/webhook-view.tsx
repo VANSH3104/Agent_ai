@@ -9,7 +9,6 @@ export function WebhookConfigForm({ onSubmit }: { onSubmit: (data: any) => void 
     authType: "none",
     authSecret: "",
     allowedEvents: "",
-    responseType: "immediate",
     payloadMapping: "",
     corsOrigins: "*",
     ipWhitelist: "",
@@ -77,13 +76,7 @@ export function WebhookConfigForm({ onSubmit }: { onSubmit: (data: any) => void 
       {/* Allowed Events */}
       <label className="block mb-2">Allowed Events (comma-separated)</label>
       <input name="allowedEvents" value={form.allowedEvents} onChange={handleChange} className="border p-2 w-full mb-4" />
-
-      {/* Response Type */}
-      <label className="block mb-2">Response Type</label>
-      <select name="responseType" value={form.responseType} onChange={handleChange} className="border p-2 w-full mb-4">
-        <option value="immediate">Immediate</option>
-        <option value="after_last_node">After Kafka Processing</option>
-      </select>
+      
 
       {/* Payload Mapping */}
       <label className="block mb-2">Payload Mapping (JSON)</label>
