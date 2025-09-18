@@ -13,7 +13,7 @@ export const Workflowrouter = createTRPCRouter({
   }),
   getMany: baseProcedure.query(async () => {
     try {
-      const data = await db.select().from(workflows);
+      const data = await db.select().from(workflows).where(eq(workflows.id))
       return data;
     } catch (error) {
       console.error("Error fetching workflows:", error);

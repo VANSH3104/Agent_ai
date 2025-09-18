@@ -26,9 +26,15 @@ export const Noderouter = createTRPCRouter({
         credentials: existing.credentials ? JSON.parse(existing.credentials) : null,
       };
     }),
-  getMany: protectedProcedure.query(async () => {
+  getMany: protectedProcedure
+  .input(z.object({ workflowId: z.string() }))
+  .query(async ({ input }) => {
     try {
-      const data = await db.select().from(nodes);
+      const data = await db
+        .select()
+        .from(nodes)
+        .where(eq(nodes.workflowId, input.workflowId));
+
       return data.map((node) => ({
         ...node,
         parameters: JSON.parse(node.parameters),
@@ -40,6 +46,7 @@ export const Noderouter = createTRPCRouter({
       throw new Error("Failed to fetch nodes");
     }
   }),
+
 create: protectedProcedure
   .input(NodeSchema)
   .mutation(async ({ input }) => {
