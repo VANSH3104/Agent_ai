@@ -15,7 +15,7 @@ export const NodesRenderer: React.FC<CanvasProps & { onDragStart: (node: Node, e
   setIsConnecting,
   setConnectionStart,
   setConnections,
-  onDragStart,
+  onDragStart,e
 }) => {
   const trpc = useTRPC();
   const { data: nodes = [] } = useQuery(trpc.Noderouter.getMany.queryOptions({ workflowId: id }));
