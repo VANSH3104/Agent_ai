@@ -1,5 +1,5 @@
 import React from 'react'
-import { WorkflowBuilder } from '@/app/module/agents/workflowpage';
+// import { WorkflowBuilder } from '@/app/module/agents/workflowpage';
 import { getQueryClient } from '@/trpc/server';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { Suspense } from 'react';
@@ -20,7 +20,7 @@ const page =async()=> {
     <HydrationBoundary state={dehydrate(querryClient)}>
       <Suspense fallback={<div>Loading...</div>}>
         <div>
-          <WorkflowBuilder />
+          {/* <WorkflowBuilder /> */}
         </div>
       </Suspense>
     </HydrationBoundary>

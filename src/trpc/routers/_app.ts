@@ -1,9 +1,17 @@
-import { Noderouter } from '@/app/module/agents/server/Node';
-import { createTRPCRouter } from '../init';
-import { Workflowrouter } from '@/app/module/agents/server/process';
+// import { Noderouter } from '@/app/module/agents/server/Node';
+import { db } from '@/db/index';
+import { createTRPCRouter, protectedProcedure } from '../init';
+import { workflows } from '@/db/schema';
+// import { Workflowrouter } from '@/app/module/agents/server/process';
 export const appRouter = createTRPCRouter({
-  workflow: Workflowrouter,
-  Noderouter: Noderouter
-});
+  getWorkflows:  protectedProcedure.query(({ctx})=>{
+    return db.select().from(workflows);
+  }),
+  createWorkflow: protectedProcedure.mutation(() => {
+    return db.insert(workflows).values({
+        name: "New Workflow",
+    })
+  }),
+})
 // export type definition of API
 export type AppRouter = typeof appRouter;
