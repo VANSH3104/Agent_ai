@@ -2,12 +2,19 @@
 import { db } from '@/db/index';
 import { createTRPCRouter, protectedProcedure } from '../init';
 import { workflows } from '@/db/schema';
+import { inngest } from '@/inngest/client';
 // import { Workflowrouter } from '@/app/module/agents/server/process';
 export const appRouter = createTRPCRouter({
   getWorkflows:  protectedProcedure.query(({ctx})=>{
     return db.select().from(workflows);
   }),
-  createWorkflow: protectedProcedure.mutation(() => {
+  createWorkflow: protectedProcedure.mutation(async() => {
+    await inngest.send({
+      name: "test/hello.world",
+      data: {
+        email:"vansh@gmail.com"
+      }
+    });
     return db.insert(workflows).values({
         name: "New Workflow",
     })
