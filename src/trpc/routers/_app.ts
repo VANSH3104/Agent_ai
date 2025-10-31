@@ -5,6 +5,13 @@ import { workflows } from '@/db/schema';
 import { inngest } from '@/inngest/client';
 // import { Workflowrouter } from '@/app/module/agents/server/process';
 export const appRouter = createTRPCRouter({
+  testAi:protectedProcedure.mutation(async()=>{
+     await inngest.send({
+       name:"execute/ai",
+       
+     }) 
+     return { success: true , message: "job queued"}
+  }),
   getWorkflows:  protectedProcedure.query(({ctx})=>{
     return db.select().from(workflows);
   }),

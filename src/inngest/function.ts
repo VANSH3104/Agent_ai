@@ -1,10 +1,16 @@
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { inngest } from "./client";
-
-export const helloWorld = inngest.createFunction(
-  { id: "hello-world" },
-  { event: "test/hello.world" },
+import { generateText } from "ai"
+const google = createGoogleGenerativeAI();
+export const ExecuteAi = inngest.createFunction(
+  { id: "execute-ai" },
+  { event: "execute/ai" },
   async ({ event, step }) => {
-    await step.sleep("wait-a-moment", "10s");
-    return { message: `Hello ${event.data.email}!` };
+    const { steps } = await step.ai.wrap("gemini-generate-test", generateText, {
+      model: google("gemini-2.5-flash"),
+      system: "You are a helpful assistant.",
+      prompt: "what is 2+2"
+    })
+    return steps;
   },
 );
