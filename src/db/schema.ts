@@ -10,6 +10,7 @@ export const user = pgTable("user", {
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  
 });
 
 // === SESSIONS ===
@@ -55,4 +56,7 @@ export const verification = pgTable("verification", {
 export const workflows = pgTable("workflows", {
   id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
   name: text("name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });

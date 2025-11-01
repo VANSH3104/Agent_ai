@@ -1,6 +1,6 @@
 "use client"
 
-import { Home } from "lucide-react"
+import { Workflow , Key } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -21,14 +21,14 @@ import { usePathname } from "next/navigation"
 import { AgentDialog } from "./AgentDialog"
 const items = [
   {
-    title: "Home",
+    title: "Agent",
     url: "/dashboard",
-    icon: Home,
+    icon: Workflow,
   },
   {
-    title: "Agent",
+    title: "Credentials",
     url: "dashboard/agents", 
-    icon: Home
+    icon: Key
   },
   // {
   //   title: "Calendar",

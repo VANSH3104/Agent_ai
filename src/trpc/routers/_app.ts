@@ -1,31 +1,9 @@
-// import { Noderouter } from '@/app/module/agents/server/Node';
-import { db } from '@/db/index';
-import { createTRPCRouter, protectedProcedure } from '../init';
-import { workflows } from '@/db/schema';
-import { inngest } from '@/inngest/client';
-// import { Workflowrouter } from '@/app/module/agents/server/process';
+import { Agentrouter } from '@/app/module/Agents/server/router';
+import { UserRouter } from '@/app/module/user/router';
+import { createTRPCRouter } from '../init';
 export const appRouter = createTRPCRouter({
-  testAi:protectedProcedure.mutation(async()=>{
-     await inngest.send({
-       name:"execute/ai",
-       
-     }) 
-     return { success: true , message: "job queued"}
-  }),
-  getWorkflows:  protectedProcedure.query(({ctx})=>{
-    return db.select().from(workflows);
-  }),
-  createWorkflow: protectedProcedure.mutation(async() => {
-    await inngest.send({
-      name: "test/hello.world",
-      data: {
-        email:"vansh@gmail.com"
-      }
-    });
-    return db.insert(workflows).values({
-        name: "New Workflow",
-    })
-  }),
+  agent: Agentrouter,
+  user: UserRouter,
 })
 // export type definition of API
 export type AppRouter = typeof appRouter;

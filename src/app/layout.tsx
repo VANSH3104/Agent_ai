@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { TRPCReactProvider } from "@/trpc/client";
+import { HydrateClient } from "@/trpc/server";
+import { ErrorBoundary } from "react-error-boundary";
+import { Suspense } from "react";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,6 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <TRPCReactProvider>
+      <HydrateClient>
+        <ErrorBoundary fallback={<div>error</div>}>
+          <Suspense fallback={<div>Loading...</div>}>
     <html lang="en">
       <body
         className={`${inter.className} antialiased`}
@@ -27,6 +33,9 @@ export default function RootLayout({
         {children}
       </body>
     </html>
+          </Suspense>
+        </ErrorBoundary>
+      </HydrateClient>
     </TRPCReactProvider>
   );
 }
