@@ -1,33 +1,72 @@
-export const WrapperUI = () => {
-    return (
-        <div className="wrapper">
-            <div className="content">
-                <div className="header">
-                    <h1>Agent AI</h1>
-                </div>
-                <div className="body">
-                    <div className="sidebar">
-                        <div className="sidebar-header">
-                            <h2>Navigation</h2>
-                        </div>
-                        <div className="sidebar-body">
-                            <ul>
-                                <li><a href="#">Home</a></li>
-                                <li><a href="#">About</a></li>
-                                <li><a href="#">Contact</a></li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div className="main">
-                        <div className="main-header">
-                            <h2>Welcome to Agent AI</h2>
-                        </div>
-                        <div className="main-body">
-                            <p>Agent AI is a powerful tool for automating tasks and improving efficiency.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+type WrapperUIProps = {
+  title: string;
+  description?: string;
+  newButtonLablel: string;
+  disabled?: boolean;
+  isCreating?: boolean;
+} & (
+  | { onNew: () => void;  newButtonHref?: never}
+  | { newButtonHref: string; onNew?: never}
+  | { newButtonHref: string; onNew?: never}
+)
+import { PlusIcon } from "lucide-react";  
+import { Button } from "./button";
+import Link from "next/link";
+export const WrapperUI = ({
+  title,
+  description,
+  newButtonLablel,
+  disabled,
+  isCreating,
+  onNew,
+  newButtonHref
+}: WrapperUIProps) => {
+  return (
+    <div className="flex flex-row items-center justify-between w-full">
+      <div className="flex flex-col">
+        <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
+        {description && (
+          <p className="text-sm text-gray-500">{description}</p>
+        )}
+      </div>
+      {onNew && !newButtonHref && (
+        <Button disabled={disabled || isCreating} className="flex items-center gap-2">
+          <PlusIcon className="w-4 h-4" />
+          {newButtonLablel}
+        </Button>
+      )}
+      {newButtonHref && !onNew && (
+        <Button asChild className="flex items-center gap-2">
+          <Link href={newButtonHref} prefetch>
+            <PlusIcon className="w-4 h-4" />
+            {newButtonLablel}
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
+
+};
+type WrapperContainerProps = {
+  children: React.ReactNode;
+  header?: React.ReactNode;
+  search?: React.ReactNode;
+  pagination?: React.ReactNode;
+}
+export const WrapperContainer = ({
+  children,
+  header,
+  search,
+  pagination
+}: WrapperContainerProps) => {
+  return (
+    <div className="p-4 md:px-10 md:py-6  ">
+      <div className="mx-auto max-w-screen w-full flex flex-col gap-y-8 h-full">
+        {header}
+       
+      </div>
+      {children}
+
+    </div>
+  );
 };
