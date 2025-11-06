@@ -5,11 +5,13 @@ import { workflows } from '@/db/schema';
 import { z } from 'zod';
 import { eq, and } from 'drizzle-orm';
 export const Agentrouter = createTRPCRouter({
-  create: protectedProcedure.mutation(({ctx})=>{
-    return db.insert(workflows).values({
-      name: generateSlug(4),
-      userId: ctx.user.user.id,
-    })
+  create: protectedProcedure.mutation(async ({ ctx }) => {
+      const [newAgent] = await db.insert(workflows).values({
+        name: generateSlug(3),
+        userId: ctx.user.user.id,
+      }).returning();
+      
+      return newAgent;
   }),
   remove : protectedProcedure.input(z.object({id: z.string().uuid()})).mutation(({ctx, input})=>{
     return db.delete(workflows).where(
