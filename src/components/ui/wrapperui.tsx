@@ -9,9 +9,10 @@ type WrapperUIProps = {
   | { newButtonHref: string; onNew?: never}
   | { newButtonHref: string; onNew?: never}
 )
-import { PlusIcon } from "lucide-react";  
+import { PlusIcon, SearchIcon } from "lucide-react";  
 import { Button } from "./button";
 import Link from "next/link";
+import { Input } from "./input";
 export const WrapperUI = ({
   title,
   description,
@@ -71,6 +72,31 @@ export const WrapperContainer = ({
       {pagination}
 
     </div>
+    </div>
+  );
+};
+
+type WrapperSearchProps = {
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export const WrapperSearch = ({ 
+  placeholder, 
+  value, 
+  onChange 
+}: WrapperSearchProps) => {
+  return (
+    <div className="relative">
+      <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pl-10"
+      />
     </div>
   );
 };

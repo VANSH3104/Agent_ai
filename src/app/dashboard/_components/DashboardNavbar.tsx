@@ -1,8 +1,8 @@
 "use client"
-import React, { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/ui/sidebar'
-import { PanelLeftCloseIcon, PanelLeftIcon, SearchIcon } from 'lucide-react'
+import { PanelLeftCloseIcon, PanelLeftIcon} from 'lucide-react'
 import { DashboardCommand } from './DashboardCommand'
 import { usePathname } from 'next/navigation'
 
@@ -10,19 +10,6 @@ export const DashboardNavbar =()=> {
     const pathname = usePathname();
     const { state , toggleSidebar , isMobile} = useSidebar();
     const [commandOpen, setCommandOpen] = useState(false);
-    useEffect(()=>{
-        const down = (e: KeyboardEvent) => {
-            if(e.key === "k" && (e.metaKey || e.ctrlKey) ) {
-                e.preventDefault();
-                setCommandOpen(open => !open);
-            } 
-        }
-        
-        document.addEventListener("keydown", down);
-        return () => {
-            document.removeEventListener("keydown", down);
-        }
-    },[]);
     const isActive = pathname != "/dashboard"
   return (
     <>
@@ -32,13 +19,7 @@ export const DashboardNavbar =()=> {
             {(state ==="collapsed" || isMobile) ?<PanelLeftIcon className='size-4' /> : <PanelLeftCloseIcon className='size-4'/>}
         </Button>
         {!isActive && (<>
-        <Button className='h-9 justify-start font-normal text-muted-foreground hover:text-muted-foreground w-[240px]' variant="outline" size="sm" onClick={()=>setCommandOpen(open => !open)}> 
-            <SearchIcon />
-            search
-            <kbd className='pointer-events-none item-center gap-1 ml-auto inline-flex h-5 rounded border bg-muted px-1.5  font-mono font-medium text-muted-foreground '>
-                <span className='text-xs'>&#8984;</span> K
-            </kbd>
-        </Button>
+  
         </>)}
     </nav>
     </>
