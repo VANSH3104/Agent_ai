@@ -21,3 +21,22 @@ export const useCreateAgent = ()=>{
     },
   }));
 }
+export const useDeteleteAgent =()=>{
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  return useMutation(trpc.agent.remove.mutationOptions({
+    onSuccess: (data) => {
+      toast.success(`Agent ${data?.name} deleted successfully`);
+      queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
+    },
+    onError: (error) => {
+      toast.error(`Failed to create agent: ${error.message}`);
+    },
+  }));
+}
+export const useSuspenceAgentId = (id: string)=>{
+  const trpc = useTRPC()
+  return useSuspenseQuery(trpc.agent.getOne.queryOptions({id}))
+  
+}
