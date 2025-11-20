@@ -1,6 +1,8 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
-import { nanoid } from "nanoid";
+import {relations } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb } from "drizzle-orm/pg-core";
 
+import { nanoid } from "nanoid";
+export const nodeTypesEnum = pgEnum("node_types", ["INITIAL"]);
 // === USERS ===
 export const user = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
@@ -60,3 +62,51 @@ export const workflows = pgTable("workflows", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
+
+export const buildNodes = pgTable('build_nodes', {
+  id: text('id').primaryKey().$defaultFn(() => nanoid(12)),
+  agentId: text('agent_id'),
+  name: text('name').notNull(),
+  types: nodeTypesEnum("types").notNull(),
+  data: jsonb("data").default({}).notNull(),
+  position: jsonb("position").$type<{ x: number; y: number }>().default({ x: 0, y: 0 }).notNull(),
+  workflowId: text('workflow_id').notNull().references(() => workflows.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const nodeConnections = pgTable('node_connections', {
+  id: text('id').primaryKey().$defaultFn(() => nanoid(12)),
+  sourceNodeId: text('source_node_id').notNull().references(() => buildNodes.id, { onDelete: 'cascade' }),
+  targetNodeId: text('target_node_id').notNull().references(() => buildNodes.id, { onDelete: 'cascade' }),
+  fromOutput: text('from_output'), // assuming this is text type based on your Prisma
+  toInput: text('to_input'), // assuming this is text type based on your Prisma
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('node_connections_unique_idx').on(table.sourceNodeId, table.targetNodeId, table.toInput, table.fromOutput)
+]);
+
+// Define relations
+export const buildNodesRelations = relations(buildNodes, ({ many, one }) => ({
+  workflow: one(workflows, {
+    fields: [buildNodes.workflowId],
+    references: [workflows.id]
+  }),
+  outputConnections: many(nodeConnections, { relationName: 'sourceNode' }),
+  inputConnections: many(nodeConnections, { relationName: 'targetNode' })
+}));
+
+export const nodeConnectionsRelations = relations(nodeConnections, ({ one }) => ({
+  sourceNode: one(buildNodes, {
+    fields: [nodeConnections.sourceNodeId],
+    references: [buildNodes.id],
+    relationName: 'sourceNode'
+  }),
+  targetNode: one(buildNodes, {
+    fields: [nodeConnections.targetNodeId],
+    references: [buildNodes.id],
+    relationName: 'targetNode'
+  })
+}));
+

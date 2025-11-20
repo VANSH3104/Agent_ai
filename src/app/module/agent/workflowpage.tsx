@@ -33,8 +33,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
   console.log(data , "data")
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <NavbarWork workflowName={data[0].name} status="Draft" id={id} />
-
+      <NavbarWork workflowName={data.workflow.name} status="Draft" id={id} />
       <div className="flex flex-1 overflow-hidden relative">
         <button
           className="lg:hidden fixed top-20 left-4 z-30 p-2 bg-white rounded-md shadow-md border border-gray-200"
@@ -53,18 +52,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
         />
 
         <Canvas 
-          nodes={nodes}
-          connections={connections}
-          selectedNode={selectedNode}
-          setSelectedNode={setSelectedNode}
-          isConnecting={isConnecting}
-          setIsConnecting={setIsConnecting}
-          connectionStart={connectionStart}
-          setConnectionStart={setConnectionStart} 
-          draggedNode={draggedNode}
-          setDraggedNode={setDraggedNode}
-          setNodes={setNodes}
-          setConnections={setConnections}
+        id={id}
         />
 
         <PropertiesPanel 

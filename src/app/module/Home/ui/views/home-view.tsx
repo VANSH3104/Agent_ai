@@ -40,7 +40,7 @@ export const AgentHeader = ({ disabled }: { disabled?: boolean }) => {
   const handleCreateAgent = useCallback(() => {
     createAgent.mutate(undefined, {
       onSuccess: (data) => {
-        router.push(`/agents/${data?.id}`);
+        router.push(`/agents/${data.newAgent.id}`);
       },
       onError: (error) => {
         console.log(error);
