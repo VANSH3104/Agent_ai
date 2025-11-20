@@ -35,8 +35,24 @@ export const useDeteleteAgent =()=>{
     },
   }));
 }
+export const useUpdateAgentName =()=>{
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  return useMutation(trpc.agent.updateName.mutationOptions({
+    onSuccess: (data) => {
+      console.log(data);
+      toast.success(`Agent ${data?.name} updated successfully`);
+      queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
+    },
+    onError: (error) => {
+      toast.error(`Failed to create agent: ${error.message}`);
+    },
+  }));
+}
+
 export const useSuspenceAgentId = (id: string)=>{
-  const trpc = useTRPC()
+  const trpc = useTRPC();
   return useSuspenseQuery(trpc.agent.getOne.queryOptions({id}))
   
 }

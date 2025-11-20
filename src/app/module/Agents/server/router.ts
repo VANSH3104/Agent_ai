@@ -13,7 +13,7 @@ export const Agentrouter = createTRPCRouter({
       
       return newAgent;
   }),
-  remove : protectedProcedure.input(z.object({id: z.string().uuid()})).mutation(({ctx, input})=>{
+  remove : protectedProcedure.input(z.object({id: z.string()})).mutation(({ctx, input})=>{
     return db.delete(workflows).where(
       and(
         eq(workflows.userId, ctx.user.user.id),
@@ -21,15 +21,16 @@ export const Agentrouter = createTRPCRouter({
       )
     ).execute();
   }),
-  updateName: protectedProcedure.input(z.object({id: z.string().uuid(), name: z.string().min(2).max(100)})).mutation(({ctx, input})=>{
-    return db.update(workflows).set({name: input.name}).where(
+  updateName: protectedProcedure.input(z.object({id: z.string(), name: z.string().min(2).max(100)})).mutation(async({ctx, input})=>{
+   const update = await db.update(workflows).set({name: input.name}).where(
       and(
         eq(workflows.userId, ctx.user.user.id),
         eq(workflows.id, input.id)  
       )
-    ).execute();
+    ).returning();
+    return update[0]; 
   }),
-  getOne: protectedProcedure.input(z.object({ id: z.string().uuid() })).query(({ ctx, input }) => {
+  getOne: protectedProcedure.input(z.object({ id: z.string() })).query(({ ctx, input }) => {
     return db
       .select().from(workflows).where(
         and(

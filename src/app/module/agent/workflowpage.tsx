@@ -5,8 +5,9 @@ import { NavbarWork } from './components/Navbar/navbarWork';
 import { NodeLibrary } from './components/NodeLibrary/Nodelibrary';
 import { Canvas } from './Canvas/Canvas';
 import { PropertiesPanel } from './PropertiesPanel/PropertiesPanel';
+import { useSuspenceAgentId } from '../Agents/server/hooks/agentHook';
 
-export const WorkflowBuilder = () => {
+export const WorkflowBuilder = ({ id }: { id: string }) => {
   const [nodes, setNodes] = useState([]);
   const [connections, setConnections] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -16,6 +17,7 @@ export const WorkflowBuilder = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const { data } = useSuspenceAgentId(id);
   useEffect(() => {
     if (selectedNode) {
       setIsPropertiesOpen(true);
@@ -28,10 +30,10 @@ export const WorkflowBuilder = () => {
     setIsPropertiesOpen(false);
     setSelectedNode(null);
   };
-  console.log(nodes ,"bbbb")
+  console.log(data , "data")
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <NavbarWork />
+      <NavbarWork workflowName={data[0].name} status="Draft" id={id} />
 
       <div className="flex flex-1 overflow-hidden relative">
         <button

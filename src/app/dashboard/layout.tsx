@@ -11,7 +11,7 @@ const Layout =({children}: Props)=>{
     return (
       <TRPCReactProvider>
         <SidebarProvider>
-          <Toaster/>
+            <Toaster/>
       <AppSidebar />
       <main className="flex flex-col h-screen w-screen bg-muted">
         <DashboardNavbar/>

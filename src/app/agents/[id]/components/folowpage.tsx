@@ -1,3 +1,4 @@
+import { WorkflowBuilder } from "@/app/module/agent/workflowpage";
 import { prefectchid } from "@/app/module/Agents/server/prefetch";
 
 interface FollowpageProps {
@@ -6,5 +7,9 @@ interface FollowpageProps {
 
 export const Followpage = async ({ id }: FollowpageProps) => {
   prefectchid(id);
-  return <div>id: {id}</div>;
+  return (
+    <div>
+      <WorkflowBuilder id={id} />
+    </div>
+  )
 };
