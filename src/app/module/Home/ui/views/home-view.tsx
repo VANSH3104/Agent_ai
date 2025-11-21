@@ -11,12 +11,25 @@ export const Homeview = () => {
   const searchQuery = searchParams.get('search') || '';
   
   const filteredAgents = useMemo(() => {
-    if (!searchQuery) return agents.data;
-    
-    return agents.data.filter((agent) =>
-      agent.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [agents.data, searchQuery]);
+    let result = agents.data;
+        
+        result = [...result].sort((a, b) => {
+          // Use createdAt if available, otherwise fall back to id or other timestamp
+          const dateA = a.createdAt ? new Date(a.createdAt) : new Date(a.id);
+          const dateB = b.createdAt ? new Date(b.createdAt) : new Date(b.id);
+          return dateB.getTime() - dateA.getTime(); // Newest first
+        });
+        
+        // Apply search filter after sorting
+        if (searchQuery) {
+          result = result.filter((agent) =>
+            agent.name.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+        }
+        
+        return result;
+      }, [agents.data, searchQuery]);
+      
   
   return (
     <div className='mt-2 grid gap-4'>

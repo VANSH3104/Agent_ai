@@ -23,7 +23,7 @@ export const Agentrouter = createTRPCRouter({
     const [newNode] = await db
       .insert(buildNodes)
       .values({
-        types: nodeTypesEnum.enumValues[0], // Use the enum properly
+        types: nodeTypesEnum.enumValues[0],
         agentId: generateSlug(2),
         workflowId: newAgent.id,
         position: { x: 0, y: 0 },

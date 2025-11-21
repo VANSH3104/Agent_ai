@@ -9,6 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
+import { useDeteleteAgent } from '@/app/module/Agents/server/hooks/agentHook';
+import { useCallback } from 'react';
+import { toast } from 'sonner';
+import { Field } from 'pg-protocol/dist/messages';
 
 interface AgentProp {
   id: string;
@@ -20,20 +24,26 @@ interface AgentProp {
 
 export const AgentCard = ({ agent }: { agent: AgentProp }) => {
   const router = useRouter();
-  
+  const deleteAgent = useDeteleteAgent();
   const handleCardClick = () => {
     router.push(`/agents/${agent.id}`);
-  };
-
+  }
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/agents/${agent.id}/edit`);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    console.log('Delete agent:', agent.id);
-  };
+  const handleDelete = useCallback(( agentId: string) => {
+    deleteAgent.mutate({ id: agentId }, {
+      onSuccess: () => {
+        toast.success(`Agent deleted successfully`);
+      },
+      onError: (error) => {
+        console.log(error);
+        toast.error(`Failed to delete agent: ${error.message}`);
+      }
+    });
+  }, [deleteAgent]);  
 
   const formatDate = (dateString: string) => {
     try {
@@ -42,7 +52,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
       return dateString;
     }
   };
-
+  
   return (
     <div
       onClick={handleCardClick}
@@ -84,7 +94,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={()=>handleDelete(agent.id)} className="text-destructive focus:text-destructive">
               <Trash2Icon className="mr-2 h-4 w-4" />
               Delete
             </DropdownMenuItem>

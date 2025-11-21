@@ -12,8 +12,8 @@ export const useCreateAgent = ()=>{
   const trpc = useTRPC();
   return useMutation(trpc.agent.create.mutationOptions({
     onSuccess: (data) => {
-      console.log(data)
-      toast.success(`Agent ${data?.name} created successfully`);
+      console.log(data);
+      toast.success(`Agent ${data.newAgent.name} created successfully`);
       queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
     },
     onError: (error) => {
@@ -26,7 +26,8 @@ export const useDeteleteAgent =()=>{
   const trpc = useTRPC();
   return useMutation(trpc.agent.remove.mutationOptions({
     onSuccess: (data) => {
-      toast.success(`Agent ${data?.name} deleted successfully`);
+      console.log('Delete response here:', data);
+      toast.success(`Agent deleted successfully`);
       queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
       queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
     },

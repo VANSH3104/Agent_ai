@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { ReactFlow, applyNodeChanges, applyEdgeChanges, addEdge, Node, Edge, NodeChange, EdgeChange, Background, Controls, MiniMap } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSuspenceAgentId } from '../../Agents/server/hooks/agentHook';
+import { NodeComponent } from '@/app/config/Nodetype';
  
  
 export function Canvas({ id }:{id:string}) {
@@ -30,7 +31,8 @@ export function Canvas({ id }:{id:string}) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
+        onConnect={()=>onConnect}
+        nodeTypes={NodeComponent}
         fitView
         proOptions={{
           hideAttribution: true
