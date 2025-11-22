@@ -2,7 +2,19 @@ import {relations } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb } from "drizzle-orm/pg-core";
 
 import { nanoid } from "nanoid";
-export const nodeTypesEnum = pgEnum("node_types", ["INITIAL"]);
+// Update your nodeTypesEnum to match all node types
+export const nodeTypesEnum = pgEnum("node_types", [
+  "INITIAL",
+  "WEBHOOK",
+  "MANUAL", 
+  "SCHEDULE",
+  "HTTP",
+  "DATABASE",
+  "EMAIL",
+  "CODE",
+  "CONDITION",
+  "FILTER"
+]);
 // === USERS ===
 export const user = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => nanoid(12)),

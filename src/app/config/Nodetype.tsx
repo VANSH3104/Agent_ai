@@ -1,7 +1,18 @@
-import { InitialNode } from "@/components/InitialNode";
-import { nodeTypesEnum } from "@/db/schema";
-import type { NodeTypes } from "@xyflow/react";
+import { NodeTypes } from '@xyflow/react';
+import { 
+  WebhookNode, ManualNode, ScheduleNode,
+  HttpNode, DatabaseNode, EmailNode, CodeNode,
+  ConditionNode, FilterNode
+} from '@/components/otherUi/customnode';
 
-export const NodeComponent = {
-  [nodeTypesEnum.enumValues[0]]: InitialNode,
-} as const satisfies NodeTypes;
+export const nodeComponents: NodeTypes = {
+  webhook: WebhookNode,
+  manual: ManualNode,
+  schedule: ScheduleNode,
+  http: HttpNode,
+  database: DatabaseNode,
+  email: EmailNode,
+  code: CodeNode,
+  condition: ConditionNode,
+  filter: FilterNode,
+};
