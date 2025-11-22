@@ -1,128 +1,129 @@
-import { nodeTypesEnum } from '@/db/schema';
 import { 
-  Webhook, Play, Calendar, Globe2, Database, 
-  Send, FileCode, Split, Shuffle 
+  Webhook, 
+  Play, 
+  Calendar, 
+  Globe2, 
+  Database, 
+  Send, 
+  FileCode, 
+  Split, 
+  Shuffle 
 } from 'lucide-react';
-
-export type NodeType = typeof nodeTypesEnum.enumValues[number];
 
 export interface NodeTypeUI {
   id: string;
   name: string;
-  icon: React.ComponentType<{ className?: string; size?: number }>;
+  icon: any; // Icon component
+  iconName: string; // Icon name as string - IMPORTANT!
   color: string;
-  bgColor: string;
-  borderColor: string;
   category: 'Triggers' | 'Actions' | 'Logic';
-  description: string;
-  schemaType: NodeType;
+  description?: string;
+  schemaType: string; // Matches your DB enum
 }
 
 export const nodeTypes: NodeTypeUI[] = [
-  // Triggers
-  { 
-    id: 'webhook', 
-    name: 'Webhook', 
-    icon: Webhook, 
+  // TRIGGERS
+  {
+    id: 'webhook',
+    name: 'Webhook',
+    icon: Webhook,
+    iconName: 'Webhook', // ADD THIS
     color: 'bg-emerald-500',
-    bgColor: '#10b981',
-    borderColor: '#059669',
     category: 'Triggers',
-    description: 'Trigger workflow via webhook',
+    description: 'Trigger workflow via HTTP webhook',
     schemaType: 'WEBHOOK'
   },
-  { 
-    id: 'manual', 
-    name: 'Manual Trigger', 
-    icon: Play, 
+  {
+    id: 'manual',
+    name: 'Manual Trigger',
+    icon: Play,
+    iconName: 'Play', // ADD THIS
     color: 'bg-blue-500',
-    bgColor: '#3b82f6',
-    borderColor: '#2563eb',
     category: 'Triggers',
-    description: 'Trigger manually',
+    description: 'Start workflow manually',
     schemaType: 'MANUAL'
   },
-  { 
-    id: 'schedule', 
-    name: 'Schedule', 
-    icon: Calendar, 
+  {
+    id: 'schedule',
+    name: 'Schedule',
+    icon: Calendar,
+    iconName: 'Calendar', // ADD THIS
     color: 'bg-cyan-500',
-    bgColor: '#06b6d4',
-    borderColor: '#0891b2',
     category: 'Triggers',
-    description: 'Trigger on schedule',
+    description: 'Run on a schedule',
     schemaType: 'SCHEDULE'
   },
   
-  // Actions
-  { 
-    id: 'http', 
-    name: 'HTTP Request', 
-    icon: Globe2, 
+  // ACTIONS
+  {
+    id: 'http',
+    name: 'HTTP Request',
+    icon: Globe2,
+    iconName: 'Globe2', // ADD THIS
     color: 'bg-purple-500',
-    bgColor: '#a855f7',
-    borderColor: '#9333ea',
     category: 'Actions',
-    description: 'Make HTTP request',
+    description: 'Make HTTP API calls',
     schemaType: 'HTTP'
   },
-  { 
-    id: 'database', 
-    name: 'Database', 
-    icon: Database, 
+  {
+    id: 'database',
+    name: 'Database',
+    icon: Database,
+    iconName: 'Database', // ADD THIS
     color: 'bg-orange-500',
-    bgColor: '#f97316',
-    borderColor: '#ea580c',
     category: 'Actions',
-    description: 'Query database',
+    description: 'Query or update database',
     schemaType: 'DATABASE'
   },
-  { 
-    id: 'email', 
-    name: 'Send Email', 
-    icon: Send, 
+  {
+    id: 'email',
+    name: 'Send Email',
+    icon: Send,
+    iconName: 'Send', // ADD THIS
     color: 'bg-rose-500',
-    bgColor: '#f43f5e',
-    borderColor: '#e11d48',
     category: 'Actions',
-    description: 'Send email',
+    description: 'Send email notifications',
     schemaType: 'EMAIL'
   },
-  { 
-    id: 'code', 
-    name: 'Run Code', 
-    icon: FileCode, 
-    color: 'bg-slate-600',
-    bgColor: '#475569',
-    borderColor: '#334155',
+  {
+    id: 'code',
+    name: 'Run Code',
+    icon: FileCode,
+    iconName: 'FileCode', // ADD THIS
+    color: 'bg-slate-500',
     category: 'Actions',
-    description: 'Execute code',
+    description: 'Execute custom code',
     schemaType: 'CODE'
   },
   
-  // Logic
-  { 
-    id: 'condition', 
-    name: 'IF Condition', 
-    icon: Split, 
+  // LOGIC
+  {
+    id: 'condition',
+    name: 'Condition',
+    icon: Split,
+    iconName: 'Split', // ADD THIS
     color: 'bg-amber-500',
-    bgColor: '#f59e0b',
-    borderColor: '#d97706',
     category: 'Logic',
-    description: 'Branch on condition',
+    description: 'Branch based on conditions',
     schemaType: 'CONDITION'
   },
-  { 
-    id: 'filter', 
-    name: 'Filter', 
-    icon: Shuffle, 
+  {
+    id: 'filter',
+    name: 'Filter',
+    icon: Shuffle,
+    iconName: 'Shuffle', // ADD THIS
     color: 'bg-indigo-500',
-    bgColor: '#6366f1',
-    borderColor: '#4f46e5',
     category: 'Logic',
-    description: 'Filter data',
+    description: 'Filter data items',
     schemaType: 'FILTER'
-  },
+  }
 ];
 
-export const getNodeTypeById = (id: string) => nodeTypes.find(n => n.id === id);
+export const getNodeTypeById = (id: string): NodeTypeUI | undefined => {
+  return nodeTypes.find(node => node.id === id);
+};
+
+// Helper function to get node type by schema type (uppercase like 'WEBHOOK')
+export const getNodeTypeBySchemaType = (schemaType: string): NodeTypeUI | undefined => {
+  return nodeTypes.find(node => node.schemaType === schemaType);
+};

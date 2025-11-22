@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { Play, Save, Settings, X, Menu, Zap } from 'lucide-react';
+import { editorAtom } from "../../Canvas/store/atomsNode";
+import { useAtomValue } from "jotai";
+import { useUpdateAgent } from '@/app/module/Agents/server/hooks/agentHook';
+import { toast } from 'sonner';
 
 interface NavbarProps {
   workflowName: string;
@@ -7,21 +11,128 @@ interface NavbarProps {
   id: string;
 }
 
+export const Handlesave = ({id}: {id: string}) => {
+  const canvas = useAtomValue(editorAtom);
+  const saveAgent = useUpdateAgent();
+  
+  const handleSave = async() => {
+    if(!canvas) {
+      toast.error('Canvas not initialized');
+      return;
+    }
+    
+    try {
+      // Fix: getNodes() not getNode()
+      const nodes = canvas.getNodes();
+      const edges = canvas.getEdges();
+      
+      console.log('Saving workflow:', { id, nodes, edges });
+      
+      // Validate we have arrays
+      if (!Array.isArray(nodes)) {
+        toast.error('Invalid nodes data');
+        return;
+      }
+      
+      if (!Array.isArray(edges)) {
+        toast.error('Invalid edges data');
+        return;
+      }
+      
+      // Transform nodes and edges to match the expected format
+      saveAgent.mutate({
+        id,
+        nodes: nodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          data: node.data
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle || undefined,
+          targetHandle: edge.targetHandle || undefined
+        }))
+      });
+      
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error(`Failed to save: ${error.message}`);
+    }
+  }
+  
+  return (
+    <>
+      <button 
+        onClick={handleSave}
+        disabled={saveAgent.isPending}
+        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Save size={16} />
+        <span>{saveAgent.isPending ? 'Saving...' : 'Save'}</span>
+      </button>
+    </>
+  )
+}
+
 import { WorkflowHeaders } from './components/agentHeaders';
 
 export const NavbarWork = ({ workflowName, status = "Draft", id }: NavbarProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+  const canvas = useAtomValue(editorAtom);
+  const saveAgent = useUpdateAgent();
 
   const handleExecute = () => {
     // Execute workflow logic
     console.log('Executing workflow');
   };
 
-  const handleSave = () => {
-    // Save workflow logic
-    console.log('Saving workflow');
-  };
+  const handleSave = async() => {
+    if(!canvas) {
+      toast.error('Canvas not initialized');
+      return;
+    }
+    
+    try {
+      const nodes = canvas.getNodes();
+      const edges = canvas.getEdges();
+      
+      console.log('Saving workflow:', { id, nodes, edges });
+      
+      if (!Array.isArray(nodes)) {
+        toast.error('Invalid nodes data');
+        return;
+      }
+      
+      if (!Array.isArray(edges)) {
+        toast.error('Invalid edges data');
+        return;
+      }
+      
+      saveAgent.mutate({
+        id,
+        nodes: nodes.map(node => ({
+          id: node.id,
+          type: node.type,
+          position: node.position,
+          data: node.data
+        })),
+        edges: edges.map(edge => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          sourceHandle: edge.sourceHandle || undefined,
+          targetHandle: edge.targetHandle || undefined
+        }))
+      });
+      
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error(`Failed to save: ${error.message}`);
+    }
+  }
 
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
@@ -64,13 +175,7 @@ export const NavbarWork = ({ workflowName, status = "Draft", id }: NavbarProps) 
             <Play size={16} />
             <span>Execute</span>
           </button>
-          <button 
-            onClick={handleSave}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2 text-sm font-medium"
-          >
-            <Save size={16} />
-            <span>Save</span>
-          </button>
+          <Handlesave id={id} />
         </div>
 
         {/* Right Section */}
@@ -106,10 +211,11 @@ export const NavbarWork = ({ workflowName, status = "Draft", id }: NavbarProps) 
             </button>
             <button 
               onClick={handleSave}
-              className="flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              disabled={saveAgent.isPending}
+              className="flex items-center space-x-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
             >
               <Save size={16} />
-              <span>Save Workflow</span>
+              <span>{saveAgent.isPending ? 'Saving...' : 'Save Workflow'}</span>
             </button>
           </div>
         </div>

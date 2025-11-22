@@ -7,23 +7,81 @@ import { Canvas } from './Canvas/Canvas';
 import { PropertiesPanel } from './PropertiesPanel/PropertiesPanel';
 import { useSuspenceAgentId } from '../Agents/server/hooks/agentHook';
 import { Node, Edge } from '@xyflow/react';
+import { 
+  Webhook, 
+  Play, 
+  Calendar, 
+  Globe2, 
+  Database, 
+  Send, 
+  FileCode, 
+  Split, 
+  Shuffle 
+} from 'lucide-react';
+
+// Icon mapping - MUST match iconName in nodetypes.ts
+const iconMap: Record<string, any> = {
+  'Webhook': Webhook,
+  'Play': Play,
+  'Calendar': Calendar,
+  'Globe2': Globe2,
+  'Database': Database,
+  'Send': Send,
+  'FileCode': FileCode,
+  'Split': Split,
+  'Shuffle': Shuffle
+};
 
 export const WorkflowBuilder = ({ id }: { id: string }) => {
   const { data } = useSuspenceAgentId(id);
   
-  // Initialize nodes and edges from data
-  const [nodes, setNodes] = useState<Node[]>(data.Nodes || []);
-  const [edges, setEdges] = useState<Edge[]>(data.Edges || []);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [draggedNode, setDraggedNode] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
 
-  // Update nodes/edges if data changes
+  // Process and load nodes from database
   useEffect(() => {
-    if (data.Nodes) setNodes(data.Nodes);
-    if (data.Edges) setEdges(data.Edges);
+    console.log('=== Loading workflow data ===');
+    console.log('Raw data:', data);
+    
+    if (data.Nodes && Array.isArray(data.Nodes)) {
+      const processedNodes = data.Nodes.map((node: any) => {
+        console.log('Processing node:', node);
+        
+        // Get icon name from node data
+        const iconName = node.data?.iconName;
+        const iconComponent = iconName && iconMap[iconName] ? iconMap[iconName] : null;
+        
+        console.log('Icon info:', { 
+          iconName, 
+          hasComponent: !!iconComponent,
+          nodeType: node.type,
+          nodeData: node.data 
+        });
+        
+        return {
+          id: node.id,
+          type: node.type, // Should be lowercase like 'webhook'
+          position: node.position || { x: 0, y: 0 },
+          data: {
+            ...node.data,
+            icon: iconComponent, // Mapped icon component
+          }
+        };
+      });
+      
+      console.log('Processed nodes for React Flow:', processedNodes);
+      setNodes(processedNodes);
+    }
+    
+    if (data.Edges && Array.isArray(data.Edges)) {
+      console.log('Loading edges:', data.Edges);
+      setEdges(data.Edges);
+    }
   }, [data.Nodes, data.Edges]);
 
   useEffect(() => {
@@ -39,17 +97,26 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
     setSelectedNode(null);
   };
 
-  // Handler for adding nodes from the library
-  const handleAddNode = useCallback((nodeType) => {
+  const handleAddNode = useCallback((nodeType: any) => {
+    console.log('Adding node via tap:', nodeType);
+    
+    const tempId = `node-${Date.now()}`;
+    const position = { 
+      x: Math.random() * 400 + 100, 
+      y: Math.random() * 400 + 100 
+    };
+    
     const newNode: Node = {
-      id: `node-${Date.now()}`,
+      id: tempId,
       type: nodeType.id,
-      position: { x: Math.random() * 400 + 100, y: Math.random() * 400 + 100 },
+      position: position,
       data: { 
         label: nodeType.name,
         icon: nodeType.icon,
+        iconName: nodeType.iconName,
         color: nodeType.color,
-        type: nodeType.id
+        type: nodeType.id,
+        schemaType: nodeType.schemaType
       },
     };
     

@@ -39,6 +39,13 @@ export const NodeLibraryItem = ({
     if (!isMobile) {
       setDraggedNode(nodeType);
       e.dataTransfer.effectAllowed = 'move';
+      // Set drag data with iconName
+      e.dataTransfer.setData('application/reactflow', JSON.stringify({
+        ...nodeType,
+        // Don't stringify the icon component, use iconName
+        icon: undefined,
+        iconName: nodeType.iconName
+      }));
     }
   };
 

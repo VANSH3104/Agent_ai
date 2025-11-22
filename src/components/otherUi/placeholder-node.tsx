@@ -5,7 +5,7 @@ import {
   Position,
   type NodeProps,
 } from "@xyflow/react";
-import { BaseNode } from "./base-node";
+import { BaseNode } from "@/components/BaseNode";
 import { Plus } from "lucide-react";
 
 export type PlaceholderNodeProps = Partial<NodeProps> & {
@@ -33,7 +33,7 @@ export const PlaceholderNode = forwardRef<HTMLDivElement, PlaceholderNodeProps>(
             {data?.label || "Add Node"}
           </div>
         </div>
-        
+        {children}
         {/* Hidden handles for connection compatibility */}
         <Handle
           type="target"
