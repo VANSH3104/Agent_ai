@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { nodeComponents } from '@/app/config/Nodetype';
-
+import ButtonEdgeDelete from "@/components/Nodes/edgeButton"
 import { useSetAtom } from 'jotai';
 import { editorAtom } from './store/atomsNode';
 import { toast } from 'sonner';
@@ -62,9 +62,16 @@ export function Canvas({
   );
 
   const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
-  );
+      (params: Connection) => {
+        const newEdge = {
+          ...params,
+          type: 'buttonedge',
+          id: `edge-${params.source}-${params.target}-${Date.now()}`
+        };
+        setEdges((eds) => addEdge(newEdge, eds));
+      },
+      [setEdges],
+    );
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
@@ -173,7 +180,9 @@ export function Canvas({
     },
     [reactFlowInstance, draggedNode, setNodes, setDraggedNode, id, createNodeMutation],
   );
-
+  const edgeTypes = {
+    buttonedge: ButtonEdgeDelete,
+  };
   const onInit = useCallback((instance: ReactFlowInstance) => {
     console.log('React Flow initialized');
     setReactFlowInstance(instance);
@@ -194,6 +203,7 @@ export function Canvas({
         onInit={onInit}
         nodeTypes={nodeComponents}
         fitView
+        edgeTypes={edgeTypes}
         proOptions={{
           hideAttribution: true
         }}

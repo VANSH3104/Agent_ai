@@ -142,6 +142,7 @@ export const Agentrouter = createTRPCRouter({
           target: conn.target,
           sourceHandle: conn.sourceHandle || null,
           targetHandle: conn.targetHandle || null,
+          type: conn.type || 'buttonedge',
         }));
       });
 
@@ -268,6 +269,7 @@ export const Agentrouter = createTRPCRouter({
           targetNodeId: edge.target,
           fromOutput: edge.sourceHandle || null,
           toInput: edge.targetHandle || null,
+          type: edge.type || 'buttonedge',
         }));
   
         await db.insert(nodeConnections).values(edgeData);

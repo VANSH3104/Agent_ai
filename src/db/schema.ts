@@ -93,6 +93,7 @@ export const nodeConnections = pgTable('node_connections', {
   targetNodeId: text('target_node_id').notNull().references(() => buildNodes.id, { onDelete: 'cascade' }),
   fromOutput: text('from_output'), // assuming this is text type based on your Prisma
   toInput: text('to_input'), // assuming this is text type based on your Prisma
+  type: text('type').default('buttonedge'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
