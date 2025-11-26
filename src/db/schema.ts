@@ -1,7 +1,9 @@
 import {relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb , integer } from "drizzle-orm/pg-core";
+
 
 import { nanoid } from "nanoid";
+
 // Update your nodeTypesEnum to match all node types
 export const nodeTypesEnum = pgEnum("node_types", [
   "INITIAL",
@@ -11,9 +13,19 @@ export const nodeTypesEnum = pgEnum("node_types", [
   "HTTP",
   "DATABASE",
   "EMAIL",
+  "GOOGLE_FORM",
   "CODE",
-  "CONDITION",
+  "CONDITION",  
   "FILTER"
+]);
+export const executionStatusEnum = pgEnum("execution_status", [
+  "PENDING",
+  "RUNNING", 
+  "SUCCESS",
+  "FAILED",
+  "PAUSED",
+  "CANCELLED",
+  "WAITING"
 ]);
 // === USERS ===
 export const user = pgTable("user", {
@@ -123,3 +135,39 @@ export const nodeConnectionsRelations = relations(nodeConnections, ({ one }) => 
   })
 }));
 
+
+export const workflowExecutions = pgTable("workflow_executions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
+  workflowId: text("workflow_id").notNull().references(() => workflows.id, { onDelete: "cascade" }),
+  status: executionStatusEnum("status").default("PENDING").notNull(),
+  triggerData: jsonb("trigger_data").default({}),
+  mode: text("mode").default("test"), // 'production' | 'test'
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const nodeExecutions = pgTable("node_executions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
+  workflowExecutionId: text("workflow_execution_id").notNull().references(() => workflowExecutions.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull().references(() => buildNodes.id, { onDelete: "cascade" }),
+  status: executionStatusEnum("status").default("PENDING").notNull(),
+  inputData: jsonb("input_data").default({}),
+  outputData: jsonb("output_data").default({}),
+  error: text("error"),
+  retryAttempt: integer("retry_attempt").default(0),
+  executionTime: integer("execution_time"), // in milliseconds
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  finishedAt: timestamp("finished_at"),
+});
+
+export const executionLogs = pgTable("execution_logs", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
+  workflowExecutionId: text("workflow_execution_id").notNull().references(() => workflowExecutions.id, { onDelete: "cascade" }),
+  nodeExecutionId: text("node_execution_id").references(() => nodeExecutions.id, { onDelete: "cascade" }),
+  level: text("level").notNull(), // 'DEBUG', 'INFO', 'WARN', 'ERROR'
+  message: text("message").notNull(),
+  metadata: jsonb("metadata").default({}),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});

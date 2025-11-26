@@ -88,16 +88,13 @@ export function Canvas({
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-
+  
       if (!reactFlowInstance) {
         console.error('React Flow instance not initialized');
         toast.error('Canvas not ready. Please try again.');
         return;
       }
-
-      const bounds = reactFlowWrapper.current?.getBoundingClientRect();
-      if (!bounds) return;
-
+  
       let nodeData = draggedNode;
       
       if (!nodeData) {
@@ -110,7 +107,7 @@ export function Canvas({
           console.error('Error parsing drag data:', error);
         }
       }
-      
+  
       console.log('Node data on drop:', nodeData);
       
       if (!nodeData) {
@@ -118,52 +115,58 @@ export function Canvas({
         toast.error('Failed to add node. Please try again.');
         return;
       }
-
+  
+      const schemaType = nodeData.schemaType || nodeData.type || 'MANUAL';
+      const nodeType = nodeData.id || nodeData.type || 'manual';
+      
       const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
-
-      console.log('Drop position:', position);
-
+  
       const tempId = `node-${Date.now()}`;
+      
+      // FIXED: Properly construct the data object with workflowId
+      const nodeDataWithWorkflowId = {
+        label: nodeData.name || nodeData.label || 'New Node',
+        icon: nodeData.icon,
+        iconName: nodeData.iconName,
+        color: nodeData.color,
+        type: nodeType,
+        schemaType: schemaType,
+        workflowId: id,
+      };
       
       const newNode: Node = {
         id: tempId,
-        type: nodeData.id,
+        type: nodeType,
         position,
-        data: {
-          label: nodeData.name,
-          icon: nodeData.icon,
-          iconName: nodeData.iconName, // IMPORTANT: Save icon name
-          color: nodeData.color,
-          type: nodeData.id,
-          schemaType: nodeData.schemaType
-        },
+        data: nodeDataWithWorkflowId,
       };
       
-      console.log('Creating node:', newNode);
+      console.log('Creating node with data:', newNode.data);
       
       setNodes((nds) => [...nds, newNode]);
       
       createNodeMutation.mutate({
         workflowId: id,
-        type: nodeData.schemaType, // DB enum value
+        type: schemaType,
         position: position,
-        data: {
-          label: nodeData.name,
-          iconName: nodeData.iconName, // Save as string
-          color: nodeData.color,
-          type: nodeData.id,
-          schemaType: nodeData.schemaType
-        }
+        data: nodeDataWithWorkflowId
       }, {
         onSuccess: (data) => {
           console.log('Node saved successfully:', data);
           setNodes((nds) => 
             nds.map(node => 
               node.id === tempId 
-                ? { ...node, id: data.newNode.id } 
+                ? { 
+                    ...node, 
+                    id: data.newNode.id,
+                    data: {
+                      ...node.data,
+                      workflowId: id
+                    }
+                  } 
                 : node
             )
           );
@@ -175,7 +178,7 @@ export function Canvas({
           toast.error(`Failed to save node: ${error.message}`);
         }
       });
-
+  
       setDraggedNode(null);
     },
     [reactFlowInstance, draggedNode, setNodes, setDraggedNode, id, createNodeMutation],
@@ -188,7 +191,9 @@ export function Canvas({
     setReactFlowInstance(instance);
     setcanvas(instance);
   }, [setcanvas]);
-
+  
+  
+  
   return (
     <div className='size-full' ref={reactFlowWrapper}>
       <ReactFlow

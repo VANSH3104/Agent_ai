@@ -1,5 +1,5 @@
 import { useTRPC } from "@/trpc/client";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 export const useSuspenceAgent = ()=>{
   const trpc = useTRPC()
@@ -90,3 +90,62 @@ export const useUpdateAgent =()=>{
     },
   }));
 }
+
+
+export const useTriggerWorkflow = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  
+  return useMutation(trpc.agent.triggerWorkflow.mutationOptions({
+    onSuccess: (data, variables) => {
+      console.log('Workflow triggered:', data);
+      toast.success(`Workflow triggered in ${variables.mode} mode`);
+      // Invalidate executions query to show the new execution
+      queryClient.invalidateQueries({
+        queryKey: trpc.agent.getWorkflowExecutions.queryOptions({ 
+          workflowId: variables.workflowId 
+        }).queryKey
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to trigger workflow:', error);
+      toast.error(`Failed to trigger workflow: ${error.message}`);
+    },
+  }));
+};
+
+export const useWorkflowExecutions = (workflowId: string, limit?: number) => {
+  const trpc = useTRPC();
+  
+  return useQuery(
+    trpc.agent.getWorkflowExecutions.queryOptions({ 
+      workflowId, 
+      limit: limit || 50 
+    })
+  );
+};
+
+export const useExecutionLogs = (executionId: string) => {
+  const trpc = useTRPC();
+  
+  return useQuery(
+    trpc.agent.getExecutionLogs.queryOptions({ executionId })
+  );
+};
+
+export const useRemoveNode = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+    
+  return useMutation(trpc.agent.removeNode.mutationOptions({
+    onSuccess: (data) => {
+      console.log('Node deletion response:', data);
+      toast.success(`Node deleted successfully`);
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.workflowId}))
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.deletedNodeId}));
+    },
+    onError: (error) => {
+      toast.error(`Failed to create agent: ${error.message}`);
+    },
+  }));
+};

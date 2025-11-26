@@ -14,6 +14,9 @@ import {
   Settings
 } from 'lucide-react';
 import { BaseNode } from './base-node';
+import { SiGoogleforms } from 'react-icons/si';
+import { useRemoveNode } from '@/app/module/Agents/server/hooks/agentHook';
+import { toast } from 'sonner';
 
 // Compact Icon-focused Node Component
 const WorkflowNode = memo(({ 
@@ -35,13 +38,35 @@ const WorkflowNode = memo(({
   iconColor?: string;
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-
+  const removeNodeMutation = useRemoveNode();
   const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (data?.onDelete) {
-      data.onDelete(id);
-    }
-  };
+      e.stopPropagation();
+      
+      // Debug: log all available data
+      console.log('Delete clicked - Available data:', {
+        nodeId: id,
+        nodeData: data,
+        hasWorkflowId: !!data?.workflowId,
+        workflowId: data?.workflowId
+      });
+      
+      // Check if we have the required data
+      if (!data?.workflowId) {
+        console.error('Missing workflowId in node data. Full data:', data);
+        toast.error('Cannot delete node: Missing workflow information. Please try refreshing the page.');
+        return;
+      }
+      
+      console.log('Calling removeNode mutation with:', {
+        workflowId: data.workflowId,
+        nodeId: id
+      });
+      
+      removeNodeMutation.mutate({ 
+        workflowId: data.workflowId, 
+        nodeId: id 
+      });
+    };
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,12 +99,12 @@ const WorkflowNode = memo(({
           />
         )}
         
-        {/* Icon Container */}
+        {/* Icon Container - FIXED: Removed strokeWidth */}
         <div 
           className="flex items-center justify-center h-14 rounded-t-md"
           style={{ backgroundColor: bgColor }}
         >
-          <Icon size={22} style={{ color: iconColor }} strokeWidth={2.5} />
+          <Icon size={22} style={{ color: iconColor }} />
         </div>
 
         {/* Node Name */}
@@ -177,6 +202,17 @@ export const HttpNode = memo((props: NodeProps) => (
 
 HttpNode.displayName = 'HttpNode';
 
+export const GoogleformsNode = memo((props: NodeProps) => (
+  <WorkflowNode 
+    {...props} 
+    icon={SiGoogleforms}
+    bgColor="#7b5cf3"
+    borderColor="#7c3aed"
+    hasInput={false} // Since it's a trigger
+  />
+));
+
+GoogleformsNode.displayName = 'GoogleformsNode';
 // Database Node - Action
 export const DatabaseNode = memo((props: NodeProps) => (
   <WorkflowNode 
