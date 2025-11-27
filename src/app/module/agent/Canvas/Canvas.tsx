@@ -117,6 +117,7 @@ export function Canvas({
       }
   
       const schemaType = nodeData.schemaType || nodeData.type || 'MANUAL';
+      console.log(schemaType , "type")
       const nodeType = nodeData.id || nodeData.type || 'manual';
       
       const position = reactFlowInstance.screenToFlowPosition({
@@ -215,7 +216,7 @@ export function Canvas({
       >
         <Controls />
         <MiniMap />
-        <Background variant="cross" gap={12} size={1} />
+        <Background variant="dots" gap={12} size={1} />
       </ReactFlow>
     </div>
   );

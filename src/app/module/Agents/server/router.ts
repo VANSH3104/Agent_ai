@@ -13,7 +13,7 @@ const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'WEBHOOK': 'webhook',
   'MANUAL': 'manual',
   'SCHEDULE': 'schedule',
-  'GOOGLE_FORM': 'googleforms',
+  'GOOGLEFORM': 'googleform',
   'HTTP': 'http',
   'DATABASE': 'database',
   'EMAIL': 'email',

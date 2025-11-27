@@ -18,6 +18,7 @@ import {
   Split, 
   Shuffle 
 } from 'lucide-react';
+import { SiGoogleforms } from 'react-icons/si';
 
 // Icon mapping - MUST match iconName in nodetypes.ts
 const iconMap: Record<string, any> = {
@@ -29,6 +30,7 @@ const iconMap: Record<string, any> = {
   'Send': Send,
   'FileCode': FileCode,
   'Split': Split,
+  'SiGoogleforms': SiGoogleforms,
   'Shuffle': Shuffle
 };
 

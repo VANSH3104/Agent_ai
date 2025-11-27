@@ -11,7 +11,7 @@ export const nodeComponents: NodeTypes = {
   manual: ManualNode,
   schedule: ScheduleNode,
   http: HttpNode,
-  googleforms: GoogleformsNode,
+  googleform: GoogleformsNode,
   database: DatabaseNode,
   email: EmailNode,
   code: CodeNode,

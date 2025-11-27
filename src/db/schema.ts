@@ -13,7 +13,7 @@ export const nodeTypesEnum = pgEnum("node_types", [
   "HTTP",
   "DATABASE",
   "EMAIL",
-  "GOOGLE_FORM",
+  "GOOGLEFORM",
   "CODE",
   "CONDITION",  
   "FILTER"
