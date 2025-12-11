@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { NodePropertiesConfig } from "../components/constrants/nodeproperties";
 import { X } from "lucide-react";
+import { useTriggerAgent } from "../../Agents/server/hooks/agentHook";
 
 interface PropertiesPanelProps {
   selectedNode: Node | null ;
@@ -9,6 +10,7 @@ interface PropertiesPanelProps {
   setSelectedNode: (node: Node | null) => void;
   setNodes: (nodes: Node[]) => void;
   isOpen: boolean;
+  workflowId: string;
   setIsOpen: (isOpen: boolean) => void;
 
   // Optional services (e.g., to update DB or run tests)
@@ -17,18 +19,25 @@ interface PropertiesPanelProps {
 }
 export const PropertiesPanel = ({
   selectedNode,
+  workflowId,
   setSelectedNode,
   setNodes,
   setConnections,
   isOpen,
   setIsOpen,
 }: PropertiesPanelProps) => {
+  const trigger = useTriggerAgent();
   const [activeTab, setActiveTab] = useState<'inputs' | 'params' | 'outputs'>('params');
   if (!selectedNode) return null;
   const nodeType = selectedNode.type;
   console.log("node types " , selectedNode.type)
   if(selectedNode?.type === 'manual'){
     setIsOpen(false);
+    trigger.mutate({
+      workflowId: workflowId,
+      triggerData: {},
+      mode: 'test'
+    })
     
   }
   const config = NodePropertiesConfig[nodeType];

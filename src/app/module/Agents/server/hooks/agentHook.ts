@@ -158,3 +158,17 @@ export const useNodesMany = (workflowId?: string) => {
     trpc.kafka.Many.queryOptions({ workflowId: workflowId ?? "" })
   );
 };
+
+export const useTriggerAgent = () => {
+  const trpc = useTRPC();
+
+  return useMutation(trpc.kafka.trigger.mutationOptions({
+    onSuccess: (data) => {
+      console.log("Agent triggered, execution:", data);
+      toast.success("Agent triggered", data);
+    },
+    onError: (err) => {
+      console.error("Trigger agent failed", err);
+    }
+  }));
+};

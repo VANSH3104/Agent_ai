@@ -160,6 +160,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
 
         <PropertiesPanel 
           selectedNode={selectedNode}
+          workflowId={id}
           setSelectedNode={setSelectedNode}
           setNodes={setNodes}
           isOpen={isPropertiesOpen}

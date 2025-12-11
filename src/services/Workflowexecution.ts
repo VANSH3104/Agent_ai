@@ -4,6 +4,7 @@ import { workflowExecutions, executionLogs, workflows } from '@/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { KafkaService } from './kafkaservice';
 import { NodeContext, WorkflowHooksService } from './workflowhooks';
+import { useNodesMany } from '@/app/module/Agents/server/hooks/agentHook';
 
 
 export class WorkflowExecutionService {
@@ -93,10 +94,7 @@ export class WorkflowExecutionService {
           
           if (message.executionId === executionId) {
             // Get workflow nodes
-            const workflowNodes = await db.query.nodes.findMany({
-              where: eq(nodes.workflowId, workflowId),
-              orderBy: [nodes.position]
-            });
+            const workflowNodes = useNodesMany(workflowId)
 
             // Execute nodes in sequence
             let previousOutput = message.triggerData;
