@@ -4,11 +4,10 @@ import { NodePropertiesConfig } from "../components/constrants/nodeproperties";
 import { X } from "lucide-react";
 
 interface PropertiesPanelProps {
-  selectedNode: Node | null;
+  selectedNode: Node | null ;
 
   setSelectedNode: (node: Node | null) => void;
   setNodes: (nodes: Node[]) => void;
-
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
 
@@ -25,11 +24,13 @@ export const PropertiesPanel = ({
   setIsOpen,
 }: PropertiesPanelProps) => {
   const [activeTab, setActiveTab] = useState<'inputs' | 'params' | 'outputs'>('params');
-
   if (!selectedNode) return null;
-
   const nodeType = selectedNode.type;
-  console.log(nodeType  , "type")
+  console.log("node types " , selectedNode.type)
+  if(selectedNode?.type === 'manual'){
+    setIsOpen(false);
+    
+  }
   const config = NodePropertiesConfig[nodeType];
   console.log(config, "config")
   const InputsComponent = config?.Inputs;
