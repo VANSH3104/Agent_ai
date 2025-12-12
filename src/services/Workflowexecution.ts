@@ -1,4 +1,4 @@
-// src/services/WorkflowExecutionService.ts (Enhanced with Node Execution Tracking)
+// src/services/WorkflowExecutionService.ts (COMPLETELY FIXED - No Multiple Consumers)
 import { db } from '@/db';
 import { 
   workflowExecutions, 
@@ -6,10 +6,10 @@ import {
   workflows, 
   buildNodes, 
   nodeConnections,
-  nodeExecutions // IMPORTANT: Track each node execution
+  nodeExecutions
 } from '@/db/schema';
-import { eq, and, desc, or } from 'drizzle-orm';
-import { KafkaService } from './kafkaservice';
+import { eq, and, desc, or, inArray } from 'drizzle-orm';
+import { getKafkaService } from './kafkaservice';
 import { NodeContext, WorkflowHooksService } from './workflowhooks';
 
 interface WorkflowNode {
@@ -29,13 +29,47 @@ interface NodeConnection {
 }
 
 export class WorkflowExecutionService {
-  private kafkaService: KafkaService;
+  private static instance: WorkflowExecutionService | null = null;
+  private kafkaService: ReturnType<typeof getKafkaService>;
   private hooksService: WorkflowHooksService;
   private consumerInitialized: Set<string> = new Set();
+  private initializationLocks: Map<string, Promise<void>> = new Map();
   
-  constructor() {
-    this.kafkaService = new KafkaService();
+  private constructor() {
+    this.kafkaService = getKafkaService();
     this.hooksService = new WorkflowHooksService(this.kafkaService);
+    
+    // Start consumer initialization on service creation
+    this.initializeAllWorkflowConsumers();
+  }
+
+  static getInstance(): WorkflowExecutionService {
+    if (!WorkflowExecutionService.instance) {
+      WorkflowExecutionService.instance = new WorkflowExecutionService();
+    }
+    return WorkflowExecutionService.instance;
+  }
+
+  // Initialize consumers for all workflows on startup
+  private async initializeAllWorkflowConsumers() {
+    try {
+      // Get all unique workflow IDs
+      const allWorkflows = await db
+        .select({ id: workflows.id })
+        .from(workflows);
+
+      console.log(`🔄 Initializing consumers for ${allWorkflows.length} workflows...`);
+
+      for (const workflow of allWorkflows) {
+        if (!this.consumerInitialized.has(workflow.id)) {
+          await this.initializeWorkflowConsumer(workflow.id);
+        }
+      }
+
+      console.log(`✅ All workflow consumers initialized`);
+    } catch (error: any) {
+      console.error('❌ Error initializing workflow consumers:', error.message);
+    }
   }
 
   async triggerWorkflow(
@@ -44,6 +78,8 @@ export class WorkflowExecutionService {
     triggerData: any = {}, 
     mode: 'production' | 'test' = 'test'
   ) {
+    console.log(`\n🚀 Triggering workflow: ${workflowId}`);
+    
     const workflow = await db
       .select()
       .from(workflows)
@@ -59,7 +95,6 @@ export class WorkflowExecutionService {
       throw new Error('Workflow not found or access denied');
     }
 
-    // Find the start node
     const startNode = await db
       .select()
       .from(buildNodes)
@@ -80,7 +115,8 @@ export class WorkflowExecutionService {
       throw new Error('No trigger node found in workflow');
     }
 
-    // Create execution record
+    console.log(`✓ Found start node: ${startNode[0].name} (${startNode[0].id})`);
+
     const [execution] = await db
       .insert(workflowExecutions)
       .values({
@@ -99,17 +135,35 @@ export class WorkflowExecutionService {
       throw new Error('Failed to create workflow execution');
     }
 
-    // Create topics
-    const triggerTopic = `workflow.${workflowId}.trigger`;
-    await this.kafkaService.createTopic(triggerTopic);
+    console.log(`✓ Created execution: ${execution.id}`);
 
-    // Initialize consumer once per workflow
+    const triggerTopic = `workflow.${workflowId}.trigger`;
+    await this.kafkaService.createTopic(triggerTopic, 3);
+
+    // CRITICAL FIX: Only initialize consumer if not already done
+    // Use locking to prevent race conditions
     if (!this.consumerInitialized.has(workflowId)) {
-      await this.initializeWorkflowConsumer(workflowId);
-      this.consumerInitialized.add(workflowId);
+      // Check if initialization is in progress
+      let initPromise = this.initializationLocks.get(workflowId);
+      
+      if (!initPromise) {
+        // Start initialization
+        initPromise = this.initializeWorkflowConsumer(workflowId);
+        this.initializationLocks.set(workflowId, initPromise);
+        
+        try {
+          await initPromise;
+        } finally {
+          this.initializationLocks.delete(workflowId);
+        }
+      } else {
+        // Wait for ongoing initialization
+        console.log(`⏳ Waiting for consumer initialization to complete...`);
+        await initPromise;
+      }
     }
 
-    // Send trigger message
+    console.log(`📤 Sending trigger message to topic: ${triggerTopic}`);
     await this.kafkaService.sendMessage(triggerTopic, execution.id, {
       workflowId,
       userId,
@@ -122,7 +176,6 @@ export class WorkflowExecutionService {
       timestamp: new Date().toISOString()
     });
 
-    // Log the trigger
     await db
       .insert(executionLogs)
       .values({
@@ -136,58 +189,88 @@ export class WorkflowExecutionService {
         }
       });
 
+    console.log(`✅ Workflow triggered successfully\n`);
     return execution;
   }
 
   private async initializeWorkflowConsumer(workflowId: string) {
-    await this.kafkaService.createConsumer(
-      `workflow-executor-${workflowId}`,
-      [`workflow.${workflowId}.trigger`],
-      async (payload) => {
-        try {
-          const message = JSON.parse(payload.message.value?.toString() || '{}');
-          await this.executeWorkflow(message);
-        } catch (error: any) {
-          console.error('Workflow execution error:', error);
-          if (message?.executionId) {
-            await this.updateExecutionStatus(message.executionId, 'FAILED', error.message);
+    // Double-check to prevent duplicates
+    if (this.consumerInitialized.has(workflowId)) {
+      console.log(`✓ Consumer already initialized for: ${workflowId}`);
+      return;
+    }
+
+    const triggerTopic = `workflow.${workflowId}.trigger`;
+    
+    try {
+      console.log(`⚙️ Initializing consumer for workflow: ${workflowId}`);
+      
+      await this.kafkaService.createConsumer(
+        `workflow-executor-${workflowId}`,
+        [triggerTopic],
+        async (payload) => {
+          try {
+            console.log(`\n📨 Received message from topic: ${triggerTopic}`);
+            const message = JSON.parse(payload.message.value?.toString() || '{}');
+            console.log(`📋 Execution ID: ${message.executionId}`);
+            
+            await this.executeWorkflow(message);
+          } catch (error: any) {
+            console.error('❌ Workflow execution error:', error.message);
+            if (message?.executionId) {
+              await this.updateExecutionStatus(message.executionId, 'FAILED', error.message);
+            }
           }
         }
-      }
-    );
-    
-    console.log(`✅ Initialized consumer for workflow: ${workflowId}`);
+      );
+      
+      // Mark as initialized AFTER successful creation
+      this.consumerInitialized.add(workflowId);
+      console.log(`✅ Consumer initialized for workflow: ${workflowId}`);
+    } catch (error: any) {
+      console.error(`❌ Failed to initialize consumer for ${workflowId}:`, error.message);
+      throw error;
+    }
   }
 
   private async executeWorkflow(message: any) {
     const { workflowId, executionId, userId, mode, triggerData } = message;
     const startNodeId = triggerData?.startNodeId;
 
+    console.log(`\n🔄 Executing workflow: ${workflowId}`);
+    console.log(`   Execution ID: ${executionId}`);
+    console.log(`   Start Node: ${startNodeId}`);
+
     if (!startNodeId) {
       throw new Error('No start node specified in trigger data');
     }
 
-    // Load workflow graph
     const nodes = await db
       .select()
       .from(buildNodes)
-      .where(eq(buildNodes.workflowId, workflowId));
+      .where(eq(buildNodes.workflowId, workflowId))
+      .orderBy(buildNodes.createdAt);
 
+    console.log(`✓ Loaded ${nodes.length} nodes`);
+
+    if (!nodes.length) {
+      await this.updateExecutionStatus(executionId, 'FAILED', 'No nodes found');
+      throw new Error('No nodes found in workflow');
+    }
+
+    const nodeIds = nodes.map(n => n.id);
     const connections = await db
       .select()
       .from(nodeConnections)
       .where(
         or(
-          ...nodes.map(n => eq(nodeConnections.sourceNodeId, n.id))
+          inArray(nodeConnections.sourceNodeId, nodeIds),
+          inArray(nodeConnections.targetNodeId, nodeIds)
         )
       );
 
-    if (!nodes.length) {
-      await this.updateExecutionStatus(executionId, 'FAILED', 'No nodes found');
-      return;
-    }
+    console.log(`✓ Loaded ${connections.length} connections`);
 
-    // Log workflow graph structure
     await db.insert(executionLogs).values({
       workflowExecutionId: executionId,
       level: 'INFO',
@@ -195,14 +278,12 @@ export class WorkflowExecutionService {
       metadata: { 
         totalNodes: nodes.length,
         totalConnections: connections.length,
-        nodeNames: nodes.map(n => n.name)
+        nodeNames: nodes.map(n => ({ id: n.id, name: n.name, type: n.types }))
       }
     });
 
-    // Build adjacency list for graph traversal
     const graph = this.buildGraph(nodes as WorkflowNode[], connections as NodeConnection[]);
     
-    // Execute nodes following the graph
     await this.executeGraphTraversal(
       startNodeId,
       graph,
@@ -216,6 +297,7 @@ export class WorkflowExecutionService {
     );
 
     await this.updateExecutionStatus(executionId, 'SUCCESS');
+    console.log(`\n✅ Workflow execution completed successfully`);
   }
 
   private buildGraph(nodes: WorkflowNode[], connections: NodeConnection[]) {
@@ -231,6 +313,17 @@ export class WorkflowExecutionService {
       const targets = adjacencyList.get(conn.sourceNodeId) || [];
       targets.push(conn.targetNodeId);
       adjacencyList.set(conn.sourceNodeId, targets);
+    });
+
+    console.log('\n📊 Graph Structure:');
+    adjacencyList.forEach((targets, sourceId) => {
+      const sourceName = nodeMap.get(sourceId)?.name || sourceId;
+      if (targets.length > 0) {
+        targets.forEach(targetId => {
+          const targetName = nodeMap.get(targetId)?.name || targetId;
+          console.log(`   ${sourceName} → ${targetName}`);
+        });
+      }
     });
 
     return { nodeMap, adjacencyList, connections };
@@ -256,30 +349,33 @@ export class WorkflowExecutionService {
 
     const executedNodes = new Set<string>();
     const nodeOutputs = new Map<string, any>();
-
-    // Queue for BFS traversal
     const queue: Array<{ nodeId: string; inputData: any; depth: number }> = [
       { nodeId: startNodeId, inputData: triggerData, depth: 0 }
     ];
 
     let executionOrder = 1;
+    console.log('\n🎯 Starting graph traversal...\n');
 
     while (queue.length > 0) {
       const { nodeId, inputData, depth } = queue.shift()!;
 
       if (executedNodes.has(nodeId)) {
+        console.log(`⏭️  Skipping already executed node: ${nodeId}`);
         continue;
       }
 
       const node = nodeMap.get(nodeId);
       if (!node) {
-        console.warn(`⚠️ Node ${nodeId} not found in graph`);
+        console.warn(`⚠️  Node ${nodeId} not found in graph`);
         continue;
       }
 
       const startTime = Date.now();
+      const indent = '  '.repeat(depth);
 
-      // Create node execution record BEFORE execution
+      console.log(`${indent}▶️  [${executionOrder}] ${node.name} (${node.types})`);
+      console.log(`${indent}   📥 Input:`, JSON.stringify(inputData, null, 2).split('\n').join(`\n${indent}      `));
+
       const [nodeExecution] = await db
         .insert(nodeExecutions)
         .values({
@@ -292,7 +388,6 @@ export class WorkflowExecutionService {
         })
         .returning();
 
-      // Log node start
       await db.insert(executionLogs).values({
         workflowExecutionId: executionId,
         nodeExecutionId: nodeExecution.id,
@@ -307,11 +402,7 @@ export class WorkflowExecutionService {
         }
       });
 
-      console.log(`\n${'  '.repeat(depth)}▶️ [${executionOrder}] ${node.name} (${node.types})`);
-      console.log(`${'  '.repeat(depth)}   Input:`, JSON.stringify(inputData, null, 2));
-
       try {
-        // Execute the node
         const context: NodeContext = {
           workflowId,
           executionId,
@@ -323,11 +414,11 @@ export class WorkflowExecutionService {
           nodeData: node.data
         };
 
-        const result = await this.hooksService.executeNode(context, inputData);
+        // CRITICAL: Pass skipKafka flag to prevent hooks from sending to Kafka
+        const result = await this.hooksService.executeNode(context, inputData, true);
         const executionTime = Date.now() - startTime;
         
         if (!result.success) {
-          // Log failure
           await db.update(nodeExecutions)
             .set({
               status: 'FAILED',
@@ -349,11 +440,11 @@ export class WorkflowExecutionService {
             }
           });
 
+          console.log(`${indent}   ❌ FAILED: ${result.error}`);
           await this.updateExecutionStatus(executionId, 'FAILED', result.error);
           return;
         }
 
-        // Update node execution with success
         await db.update(nodeExecutions)
           .set({
             status: 'SUCCESS',
@@ -363,14 +454,12 @@ export class WorkflowExecutionService {
           })
           .where(eq(nodeExecutions.id, nodeExecution.id));
 
-        // Store output
         nodeOutputs.set(nodeId, result.data);
         executedNodes.add(nodeId);
 
-        console.log(`${'  '.repeat(depth)}   Output:`, JSON.stringify(result.data, null, 2));
-        console.log(`${'  '.repeat(depth)}   ✅ Completed in ${executionTime}ms`);
+        console.log(`${indent}   📤 Output:`, JSON.stringify(result.data, null, 2).split('\n').join(`\n${indent}      `));
+        console.log(`${indent}   ✅ Completed in ${executionTime}ms`);
 
-        // Log success with input/output chain
         await db.insert(executionLogs).values({
           workflowExecutionId: executionId,
           nodeExecutionId: nodeExecution.id,
@@ -388,11 +477,10 @@ export class WorkflowExecutionService {
           }
         });
 
-        // Get next nodes
         const nextNodeIds = adjacencyList.get(nodeId) || [];
         
         if (nextNodeIds.length === 0) {
-          // End node reached
+          console.log(`${indent}   🏁 End node reached`);
           await db.insert(executionLogs).values({
             workflowExecutionId: executionId,
             nodeExecutionId: nodeExecution.id,
@@ -404,7 +492,9 @@ export class WorkflowExecutionService {
             }
           });
         } else {
-          // Log data passing to next nodes
+          const nextNodeNames = nextNodeIds.map(id => nodeMap.get(id)?.name).join(', ');
+          console.log(`${indent}   ➡️  Next: ${nextNodeNames}`);
+          
           await db.insert(executionLogs).values({
             workflowExecutionId: executionId,
             nodeExecutionId: nodeExecution.id,
@@ -420,14 +510,10 @@ export class WorkflowExecutionService {
           });
         }
 
-        // Queue connected nodes with current output as their input
         for (const nextNodeId of nextNodeIds) {
-          const nextNode = nodeMap.get(nextNodeId);
-          console.log(`${'  '.repeat(depth)}   ➡️ Next: ${nextNode?.name}`);
-          
           queue.push({
             nodeId: nextNodeId,
-            inputData: result.data, // 🔥 OUTPUT becomes INPUT
+            inputData: result.data,
             depth: depth + 1
           });
         }
@@ -437,9 +523,8 @@ export class WorkflowExecutionService {
       } catch (error: any) {
         const executionTime = Date.now() - startTime;
         
-        console.error(`${'  '.repeat(depth)}   ❌ Error:`, error.message);
+        console.error(`${indent}   💥 Exception:`, error.message);
 
-        // Update node execution with error
         await db.update(nodeExecutions)
           .set({
             status: 'FAILED',
@@ -467,7 +552,6 @@ export class WorkflowExecutionService {
       }
     }
 
-    // Workflow complete - log summary
     await db.insert(executionLogs).values({
       workflowExecutionId: executionId,
       level: 'INFO',
@@ -518,7 +602,6 @@ export class WorkflowExecutionService {
       throw new Error('Workflow not found or access denied');
     }
 
-    // Get executions with node execution details
     const executions = await db
       .select()
       .from(workflowExecutions)
@@ -530,7 +613,6 @@ export class WorkflowExecutionService {
   }
 
   async getExecutionDetails(executionId: string, userId: string) {
-    // Verify access
     const execution = await db
       .select({
         execution: workflowExecutions,
@@ -550,7 +632,6 @@ export class WorkflowExecutionService {
       throw new Error('Execution not found or access denied');
     }
 
-    // Get all node executions with input/output
     const nodeExecs = await db
       .select({
         nodeExecution: nodeExecutions,
@@ -561,7 +642,6 @@ export class WorkflowExecutionService {
       .where(eq(nodeExecutions.workflowExecutionId, executionId))
       .orderBy(nodeExecutions.startedAt);
 
-    // Get all logs
     const logs = await db
       .select()
       .from(executionLogs)
@@ -608,5 +688,10 @@ export class WorkflowExecutionService {
   async cleanup() {
     await this.kafkaService.disconnect();
     this.consumerInitialized.clear();
+    this.initializationLocks.clear();
   }
+}
+
+export function getWorkflowExecutionService(): WorkflowExecutionService {
+  return WorkflowExecutionService.getInstance();
 }

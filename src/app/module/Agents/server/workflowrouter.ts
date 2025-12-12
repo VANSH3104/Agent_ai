@@ -1,15 +1,12 @@
-// src/trpc/routers/workflowRouter.ts
+// src/trpc/routers/workflowRouter.ts (FIXED)
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { buildNodes } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { WorkflowExecutionService } from "@/services/Workflowexecution";
-
-const workflowExecutionService = new WorkflowExecutionService();
+import { getWorkflowExecutionService } from "@/services/Workflowexecution";
 
 export const Workflowrouter = createTRPCRouter({
-  // Get workflow nodes
   Many: protectedProcedure
     .input(z.object({ workflowId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -21,7 +18,6 @@ export const Workflowrouter = createTRPCRouter({
       return nodes;
     }),
 
-  // Trigger workflow execution
   trigger: protectedProcedure
     .input(
       z.object({
@@ -31,10 +27,13 @@ export const Workflowrouter = createTRPCRouter({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.user?.user?.id ?? ctx.user?.session.userId;
+      const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
       if (!userId) throw new Error('Unauthorized');
 
-      const execution = await workflowExecutionService.triggerWorkflow(
+      // Use singleton instance
+      const workflowService = getWorkflowExecutionService();
+      
+      const execution = await workflowService.triggerWorkflow(
         input.workflowId,
         userId,
         input.triggerData,
@@ -44,7 +43,6 @@ export const Workflowrouter = createTRPCRouter({
       return execution;
     }),
 
-  // Get all executions for a workflow
   getExecutions: protectedProcedure
     .input(
       z.object({
@@ -53,10 +51,12 @@ export const Workflowrouter = createTRPCRouter({
       })
     )
     .query(async ({ input, ctx }) => {
-      const userId = ctx.user?.user?.id ?? ctx.user?.session.userId;
+      const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
       if (!userId) throw new Error('Unauthorized');
 
-      const executions = await workflowExecutionService.getWorkflowExecutions(
+      const workflowService = getWorkflowExecutionService();
+      
+      const executions = await workflowService.getWorkflowExecutions(
         input.workflowId,
         userId,
         input.limit
@@ -65,14 +65,15 @@ export const Workflowrouter = createTRPCRouter({
       return executions;
     }),
 
-  // Get detailed execution with node executions
   getExecutionDetails: protectedProcedure
     .input(z.object({ executionId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const userId = ctx.user?.user?.id ?? ctx.user?.session.userId;
+      const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
       if (!userId) throw new Error('Unauthorized');
 
-      const details = await workflowExecutionService.getExecutionDetails(
+      const workflowService = getWorkflowExecutionService();
+      
+      const details = await workflowService.getExecutionDetails(
         input.executionId,
         userId
       );
@@ -80,14 +81,15 @@ export const Workflowrouter = createTRPCRouter({
       return details;
     }),
 
-  // Get execution logs
   getExecutionLogs: protectedProcedure
     .input(z.object({ executionId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const userId = ctx.user?.user?.id ?? ctx.user?.session.userId;
+      const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
       if (!userId) throw new Error('Unauthorized');
 
-      const logs = await workflowExecutionService.getExecutionLogs(
+      const workflowService = getWorkflowExecutionService();
+      
+      const logs = await workflowService.getExecutionLogs(
         input.executionId,
         userId
       );
