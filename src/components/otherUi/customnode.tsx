@@ -39,8 +39,9 @@ const WorkflowNode = memo(({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const removeNodeMutation = useRemoveNode();
-  const status = useWatchNodeStatus(id);
-  console.log(id ,status, "status")
+  const { data: status} = useWatchNodeStatus(id);
+  const orgstatus = status?.status.toLowerCase() || "initial"
+  console.log(orgstatus)
   const handleDelete = (e: React.MouseEvent) => {
       e.stopPropagation();
       
@@ -83,7 +84,7 @@ const WorkflowNode = memo(({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <NodeStatusIndicator status={status} variant="overlay">
+      <NodeStatusIndicator status={orgstatus} variant="overlay">
       <BaseNode 
         className="w-[80px] p-0 overflow-visible transition-all hover:shadow-xl"
         style={{ 

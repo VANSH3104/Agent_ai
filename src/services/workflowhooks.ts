@@ -1,4 +1,3 @@
-// src/services/workflowhooks.ts (FIXED - Direct Execution)
 import { KafkaService } from "./kafkaservice";
 
 export interface HookContext {

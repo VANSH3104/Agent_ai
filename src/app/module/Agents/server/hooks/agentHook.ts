@@ -198,10 +198,15 @@ export const useTriggerAgent = () => {
     }
   }));
 };
-export const useWatchNodeStatus = (nodeId: string) => {
+export const useWatchNodeStatus = (nodeId: string, options?: {
+  enabled?: boolean;
+  refetchInterval?: number | false;
+}) => {
   const trpc = useTRPC();
   
-  return useQuery(
-    trpc.kafka.getLatestNodeExecutionStatus.queryOptions({ nodeId }),
-  );
+  return useQuery({
+    ...trpc.kafka.getLatestNodeExecutionStatus.queryOptions({ nodeId }),
+    enabled: options?.enabled ?? !!nodeId,
+    refetchInterval: options?.refetchInterval ?? false, // Optional polling
+  });
 };

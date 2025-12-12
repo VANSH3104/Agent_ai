@@ -101,29 +101,44 @@ export const Workflowrouter = createTRPCRouter({
     .input(z.object({ 
       nodeId: z.string() 
     }))
-    .query(async ({ input, ctx }) => {
-      // Check for latest execution in nodeExecutions table
+    .query(async ({ ctx, input }) => {
+      const { nodeId } = input;
+  
+      // Query the latest execution for this node
       const latestExecution = await db
-        .select(nodeExecutions)
+        .select()
         .from(nodeExecutions)
-        .where(eq(nodeExecutions.nodeId, input.nodeId))
+        .where(eq(nodeExecutions.nodeId, nodeId))
         .orderBy(desc(nodeExecutions.startedAt))
         .limit(1);
-      return { latestExecution }     // If no execution found, return "initial"
-    //   if (latestExecution.length === 0) {
-    //     return "initial";
-    //   }
   
-    //   // Map to simple status
-    //   switch (latestExecution.status) {
-    //     case "PAUSED":
-    //       return "loading";
-    //     case "SUCCESS":
-    //       return "success";
-    //     case "FAILED":
-    //       return "error";
-    //     default:
-    //       return "initial";
-    //   }
-    }),
-});
+      // If no execution found, return INITIAL status
+      if (!latestExecution || latestExecution.length === 0) {
+        return {
+          status: "initial",
+          nodeId,
+          execution: null
+        };
+      }
+  
+      const execution = latestExecution[0];
+  
+      // Return the actual status from the latest execution
+      return {
+        status: execution.status,
+        nodeId,
+      //   execution: {
+      //     id: execution.id,
+      //     workflowExecutionId: execution.workflowExecutionId,
+      //     status: execution.status,
+      //     inputData: execution.inputData,
+      //     outputData: execution.outputData,
+      //     error: execution.error,
+      //     retryAttempt: execution.retryAttempt,
+      //     executionTime: execution.executionTime,
+      //     startedAt: execution.startedAt,
+      //     finishedAt: execution.finishedAt,
+      //   }
+      };
+    })
+}); 

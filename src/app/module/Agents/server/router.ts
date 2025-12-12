@@ -8,7 +8,6 @@ import { Node, Edge } from "@xyflow/react";
 import { getNodeTypeById } from "../../agent/components/constrants/nodetypes";
 import { WorkflowExecutionService } from "@/services/Workflowexecution";
 
-// Map database enum types to React Flow node types
 const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'WEBHOOK': 'webhook',
   'MANUAL': 'manual',
