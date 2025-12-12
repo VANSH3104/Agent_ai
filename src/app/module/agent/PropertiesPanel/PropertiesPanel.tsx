@@ -3,9 +3,11 @@ import { useState } from "react";
 import { NodePropertiesConfig } from "../components/constrants/nodeproperties";
 import { X } from "lucide-react";
 import { useTriggerAgent } from "../../Agents/server/hooks/agentHook";
+import { Node } from "@xyflow/react";
+import { LogViewer } from "./LogViewer";
 
 interface PropertiesPanelProps {
-  selectedNode: Node | null ;
+  selectedNode: Node | null;
 
   setSelectedNode: (node: Node | null) => void;
   setNodes: (nodes: Node[]) => void;
@@ -22,23 +24,23 @@ export const PropertiesPanel = ({
   workflowId,
   setSelectedNode,
   setNodes,
-  setConnections,
   isOpen,
   setIsOpen,
+  onSaveConfig,
 }: PropertiesPanelProps) => {
   const trigger = useTriggerAgent();
   const [activeTab, setActiveTab] = useState<'inputs' | 'params' | 'outputs'>('params');
   if (!selectedNode) return null;
-  const nodeType = selectedNode.type;
-  console.log("node types " , selectedNode.type)
-  if(selectedNode?.type === 'manual'){
+  const nodeType = selectedNode.type || 'manual';
+  console.log("node types ", selectedNode.type)
+  if (selectedNode?.type === 'manual') {
     setIsOpen(false);
     trigger.mutate({
       workflowId: workflowId,
       triggerData: {},
       mode: 'test'
     })
-    
+
   }
   const config = NodePropertiesConfig[nodeType];
   console.log(config, "config")
@@ -49,7 +51,7 @@ export const PropertiesPanel = ({
   return (
     <>
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
@@ -60,14 +62,14 @@ export const PropertiesPanel = ({
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'}`}
       >
-       
+
         {/* HEADER */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-800 truncate max-w-[50%]">
-            Node: {selectedNode?.data?.label || config?.label}
+            Node: {String(selectedNode?.data?.label || config?.label || '')}
           </h3>
 
-          <button 
+          <button
             className="p-1 text-gray-500 hover:text-gray-700"
             onClick={() => setIsOpen(false)}
           >
@@ -82,11 +84,10 @@ export const PropertiesPanel = ({
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
-                className={`flex-1 py-3 text-sm font-medium ${
-                  activeTab === tab ? 
-                  'text-blue-600 border-b-2 border-blue-600' : 
+                className={`flex-1 py-3 text-sm font-medium ${activeTab === tab ?
+                  'text-blue-600 border-b-2 border-blue-600' :
                   'text-gray-500'
-                }`}
+                  }`}
               >
                 {tab.toUpperCase()}
               </button>
@@ -103,7 +104,13 @@ export const PropertiesPanel = ({
           `}>
             <h4 className="text-lg font-semibold mb-4 pb-2 border-b hidden lg:block">Inputs</h4>
 
-            {InputsComponent ? <InputsComponent nodeData={selectedNode} /> : <p>No Inputs</p>}
+            {InputsComponent ? <InputsComponent nodeData={selectedNode} /> : (
+              <LogViewer
+                nodeId={selectedNode.id}
+                workflowId={workflowId}
+                type="input"
+              />
+            )}
           </div>
 
           {/* PARAMS */}
@@ -112,7 +119,18 @@ export const PropertiesPanel = ({
           `}>
             <h4 className="text-lg font-semibold mb-4 pb-2 border-b hidden lg:block">Parameters</h4>
 
-            {ParamsComponent ? <ParamsComponent nodeData={selectedNode} /> : <p>No Parameters</p>}
+            {ParamsComponent ? (
+              <ParamsComponent
+                key={selectedNode.id}
+                nodeData={selectedNode}
+                initialData={selectedNode.data}
+                onSave={(data: any) => {
+                  if (onSaveConfig && selectedNode) {
+                    onSaveConfig(selectedNode.id, data);
+                  }
+                }}
+              />
+            ) : <p>No Parameters</p>}
           </div>
 
           {/* OUTPUTS */}
@@ -121,7 +139,13 @@ export const PropertiesPanel = ({
           `}>
             <h4 className="text-lg font-semibold mb-4 pb-2 border-b hidden lg:block">Outputs</h4>
 
-            {OutputsComponent ? <OutputsComponent nodeData={selectedNode} /> : <p>No Outputs</p>}
+            {OutputsComponent ? <OutputsComponent nodeData={selectedNode} /> : (
+              <LogViewer
+                nodeId={selectedNode.id}
+                workflowId={workflowId}
+                type="output"
+              />
+            )}
           </div>
         </div>
       </div>

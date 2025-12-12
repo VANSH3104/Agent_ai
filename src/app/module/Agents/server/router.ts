@@ -103,7 +103,7 @@ export const Agentrouter = createTRPCRouter({
           if (!nodesMap.has(row.buildNode.id)) {
             // Convert DB type to React Flow node type
             const nodeType = DB_TYPE_TO_NODE_TYPE[row.buildNode.types] || 'manual';
-            
+
             nodesMap.set(row.buildNode.id, {
               id: row.buildNode.id,
               type: nodeType, // Use lowercase node type for React Flow
@@ -167,8 +167,8 @@ export const Agentrouter = createTRPCRouter({
   }),
 
   update: protectedProcedure
-    .input(z.object({ 
-      id: z.string(), 
+    .input(z.object({
+      id: z.string(),
       nodes: z.array(
         z.object({
           id: z.string(),
@@ -187,19 +187,19 @@ export const Agentrouter = createTRPCRouter({
           target: z.string(),
           sourceHandle: z.string().optional().nullable(),
           targetHandle: z.string().optional().nullable(),
-        }) 
+        })
       )
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, nodes, edges } = input;
-      
+
       console.log('Update mutation called with:', { id, nodesCount: nodes.length, edgesCount: edges.length });
-  
+
       // Update workflow basic info
       const [workflowUpdate] = await db
         .update(workflows)
-        .set({ 
-          updatedAt: new Date() 
+        .set({
+          updatedAt: new Date()
         })
         .where(
           and(
@@ -208,21 +208,21 @@ export const Agentrouter = createTRPCRouter({
           ),
         )
         .returning();
-        
+
       if (!workflowUpdate) {
         throw new Error("Workflow not found or unauthorized");
       }
-  
+
       // Get existing nodes for this workflow
       const existingNodes = await db
         .select({ id: buildNodes.id })
         .from(buildNodes)
         .where(eq(buildNodes.workflowId, id));
-      
+
       // Delete connections for existing nodes
       if (existingNodes.length > 0) {
         const nodeIds = existingNodes.map(n => n.id);
-        
+
         // Delete connections where source or target is one of these nodes
         for (const nodeId of nodeIds) {
           await db.delete(nodeConnections).where(
@@ -233,23 +233,23 @@ export const Agentrouter = createTRPCRouter({
           );
         }
       }
-      
+
       // Now delete the nodes
       await db.delete(buildNodes).where(
         eq(buildNodes.workflowId, id)
       );
-  
+
       // Insert new nodes
       if (nodes.length > 0) {
         const nodeData = nodes.map(node => {
           const nodeType = getNodeTypeById(node.type);
-          
-          console.log('Preparing node for insert:', { 
-            nodeId: node.id, 
-            nodeType: node.type, 
-            schemaType: nodeType?.schemaType 
+
+          console.log('Preparing node for insert:', {
+            nodeId: node.id,
+            nodeType: node.type,
+            schemaType: nodeType?.schemaType
           });
-          
+
           return {
             id: node.id,
             name: node.data?.label || `Node ${node.id.slice(0, 8)}`,
@@ -259,11 +259,11 @@ export const Agentrouter = createTRPCRouter({
             workflowId: id,
           };
         });
-  
+
         await db.insert(buildNodes).values(nodeData);
         console.log('Inserted nodes:', nodeData.length);
       }
-  
+
       // Insert new edges (node connections)
       if (edges.length > 0) {
         const edgeData = edges.map(edge => ({
@@ -274,11 +274,11 @@ export const Agentrouter = createTRPCRouter({
           toInput: edge.targetHandle || null,
           type: edge.type || 'buttonedge',
         }));
-  
+
         await db.insert(nodeConnections).values(edgeData);
         console.log('Inserted edges:', edgeData.length);
       }
-  
+
       return workflowUpdate;
     }),
 
@@ -294,13 +294,13 @@ export const Agentrouter = createTRPCRouter({
     }))
     .mutation(async ({ ctx, input }) => {
       console.log('Creating node with input:', input);
-      
+
       // Map the string type to your enum
       const validTypes = nodeTypesEnum.enumValues;
-      const mappedType = validTypes.includes(input.type as any) 
+      const mappedType = validTypes.includes(input.type as any)
         ? (input.type as typeof nodeTypesEnum.enumValues[number])
         : 'MANUAL'; // fallback
-  
+
       const [newNode] = await db
         .insert(buildNodes)
         .values({
@@ -311,17 +311,17 @@ export const Agentrouter = createTRPCRouter({
           name: input.data?.label || input.type.toLowerCase(),
         })
         .returning();
-  
+
       if (!newNode) {
         throw new Error("Failed to create node");
       }
-      
+
       console.log('Node created in DB:', newNode);
-      
+
       // Return node in React Flow format
       const nodeType = DB_TYPE_TO_NODE_TYPE[newNode.types] || 'manual';
-      
-      return { 
+
+      return {
         newNode: {
           id: newNode.id,
           type: nodeType, // React Flow type
@@ -336,217 +336,253 @@ export const Agentrouter = createTRPCRouter({
       };
     }),
   triggerWorkflow: protectedProcedure
-      .input(z.object({
-        workflowId: z.string(),
-        triggerData: z.record(z.any()).optional(),
-        mode: z.enum(['production', 'test']).default('test')
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const executionService = new WorkflowExecutionService();
-        
-        const execution = await executionService.triggerWorkflow(
-          input.workflowId,
-          ctx.user.user.id,
-          input.triggerData || {},
-          input.mode
-        );
-        
-        return execution;
-      }),
-  
-    getWorkflowExecutions: protectedProcedure
-      .input(z.object({
-        workflowId: z.string(),
-        limit: z.number().min(1).max(100).optional().default(50)
-      }))
-      .query(async ({ ctx, input }) => {
-        // Verify user has access to this workflow
-        const workflow = await db
-          .select()
-          .from(workflows)
-          .where(
-            and(
-              eq(workflows.id, input.workflowId),
-              eq(workflows.userId, ctx.user.user.id)
-            )
+    .input(z.object({
+      workflowId: z.string(),
+      triggerData: z.record(z.any()).optional(),
+      mode: z.enum(['production', 'test']).default('test')
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const executionService = new WorkflowExecutionService();
+
+      const execution = await executionService.triggerWorkflow(
+        input.workflowId,
+        ctx.user.user.id,
+        input.triggerData || {},
+        input.mode
+      );
+
+      return execution;
+    }),
+
+  getWorkflowExecutions: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      limit: z.number().min(1).max(100).optional().default(50)
+    }))
+    .query(async ({ ctx, input }) => {
+      // Verify user has access to this workflow
+      const workflow = await db
+        .select()
+        .from(workflows)
+        .where(
+          and(
+            eq(workflows.id, input.workflowId),
+            eq(workflows.userId, ctx.user.user.id)
           )
-          .limit(1);
-  
-        if (!workflow.length) {
-          throw new Error("Workflow not found or unauthorized");
-        }
-  
-        const executions = await db
-          .select()
-          .from(workflowExecutions)
-          .where(eq(workflowExecutions.workflowId, input.workflowId))
-          .orderBy(desc(workflowExecutions.startedAt))
-          .limit(input.limit);
-  
-        return executions;
-      }),
-  
-    getExecutionLogs: protectedProcedure
-      .input(z.object({
-        executionId: z.string(),
-      }))
-      .query(async ({ ctx, input }) => {
-        const execution = await db
-          .select({
-            execution: workflowExecutions,
-            workflow: workflows
-          })
-          .from(workflowExecutions)
-          .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
-          .where(
-            and(
-              eq(workflowExecutions.id, input.executionId),
-              eq(workflows.userId, ctx.user.user.id)
-            )
+        )
+        .limit(1);
+
+      if (!workflow.length) {
+        throw new Error("Workflow not found or unauthorized");
+      }
+
+      const executions = await db
+        .select()
+        .from(workflowExecutions)
+        .where(eq(workflowExecutions.workflowId, input.workflowId))
+        .orderBy(desc(workflowExecutions.startedAt))
+        .limit(input.limit);
+
+      return executions;
+    }),
+
+  getExecutionLogs: protectedProcedure
+    .input(z.object({
+      executionId: z.string(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const execution = await db
+        .select({
+          execution: workflowExecutions,
+          workflow: workflows
+        })
+        .from(workflowExecutions)
+        .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+        .where(
+          and(
+            eq(workflowExecutions.id, input.executionId),
+            eq(workflows.userId, ctx.user.user.id)
           )
-          .limit(1);
-  
-        if (!execution.length) {
-          throw new Error("Execution not found or unauthorized");
-        }
-  
-        const logs = await db
-          .select()
-          .from(executionLogs)
-          .where(eq(executionLogs.workflowExecutionId, input.executionId))
-          .orderBy(desc(executionLogs.timestamp));
-  
-        return logs;
-      }),
-  
-    // New procedure to get detailed execution with node executions and logs
-    getExecutionDetails: protectedProcedure
-      .input(z.object({
-        executionId: z.string(),
-      }))
-      .query(async ({ ctx, input }) => {
-        // Verify user has access to this execution
-        const execution = await db
-          .select({
-            execution: workflowExecutions,
-            workflow: workflows
-          })
-          .from(workflowExecutions)
-          .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
-          .where(
-            and(
-              eq(workflowExecutions.id, input.executionId),
-              eq(workflows.userId, ctx.user.user.id)
-            )
+        )
+        .limit(1);
+
+      if (!execution.length) {
+        throw new Error("Execution not found or unauthorized");
+      }
+
+      const logs = await db
+        .select()
+        .from(executionLogs)
+        .where(eq(executionLogs.workflowExecutionId, input.executionId))
+        .orderBy(desc(executionLogs.timestamp));
+
+      return logs;
+    }),
+
+  // New procedure to get detailed execution with node executions and logs
+  getExecutionDetails: protectedProcedure
+    .input(z.object({
+      executionId: z.string(),
+    }))
+    .query(async ({ ctx, input }) => {
+      // Verify user has access to this execution
+      const execution = await db
+        .select({
+          execution: workflowExecutions,
+          workflow: workflows
+        })
+        .from(workflowExecutions)
+        .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+        .where(
+          and(
+            eq(workflowExecutions.id, input.executionId),
+            eq(workflows.userId, ctx.user.user.id)
           )
-          .limit(1);
-  
-        if (!execution.length) {
-          throw new Error("Execution not found or unauthorized");
-        }
-  
-        // Get workflow execution
-        const [workflowExecution] = execution;
-  
-        // Get node executions
-        const nodeExecutionsData = await db
-          .select()
-          .from(nodeExecutions)
-          .where(eq(nodeExecutions.workflowExecutionId, input.executionId))
-          .orderBy(desc(nodeExecutions.startedAt));
-  
-        // Get execution logs
-        const logs = await db
-          .select()
-          .from(executionLogs)
-          .where(eq(executionLogs.workflowExecutionId, input.executionId))
-          .orderBy(desc(executionLogs.timestamp));
-  
-        return {
-          execution: workflowExecution.execution,
-          workflow: workflowExecution.workflow,
-          nodeExecutions: nodeExecutionsData,
-          logs: logs
-        };
-      }),
-  
-    // Procedure to create execution logs
-    createExecutionLog: protectedProcedure
-      .input(z.object({
-        workflowExecutionId: z.string(),
-        nodeExecutionId: z.string().optional(),
-        level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']),
-        message: z.string(),
-        metadata: z.record(z.any()).optional()
-      }))
-      .mutation(async ({ ctx, input }) => {
-        // Verify user has access to this execution
-        const execution = await db
-          .select({
-            execution: workflowExecutions,
-            workflow: workflows
-          })
-          .from(workflowExecutions)
-          .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
-          .where(
-            and(
-              eq(workflowExecutions.id, input.workflowExecutionId),
-              eq(workflows.userId, ctx.user.user.id)
-            )
+        )
+        .limit(1);
+
+      if (!execution.length) {
+        throw new Error("Execution not found or unauthorized");
+      }
+
+      // Get workflow execution
+      const [workflowExecution] = execution;
+
+      // Get node executions
+      const nodeExecutionsData = await db
+        .select()
+        .from(nodeExecutions)
+        .where(eq(nodeExecutions.workflowExecutionId, input.executionId))
+        .orderBy(desc(nodeExecutions.startedAt));
+
+      // Get execution logs
+      const logs = await db
+        .select()
+        .from(executionLogs)
+        .where(eq(executionLogs.workflowExecutionId, input.executionId))
+        .orderBy(desc(executionLogs.timestamp));
+
+      return {
+        execution: workflowExecution.execution,
+        workflow: workflowExecution.workflow,
+        nodeExecutions: nodeExecutionsData,
+        logs: logs
+      };
+    }),
+
+  // Procedure to create execution logs
+  createExecutionLog: protectedProcedure
+    .input(z.object({
+      workflowExecutionId: z.string(),
+      nodeExecutionId: z.string().optional(),
+      level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']),
+      message: z.string(),
+      metadata: z.record(z.any()).optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Verify user has access to this execution
+      const execution = await db
+        .select({
+          execution: workflowExecutions,
+          workflow: workflows
+        })
+        .from(workflowExecutions)
+        .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+        .where(
+          and(
+            eq(workflowExecutions.id, input.workflowExecutionId),
+            eq(workflows.userId, ctx.user.user.id)
           )
-          .limit(1);
-  
-        if (!execution.length) {
-          throw new Error("Execution not found or unauthorized");
-        }
-  
-        const [newLog] = await db
-          .insert(executionLogs)
-          .values({
-            workflowExecutionId: input.workflowExecutionId,
-            nodeExecutionId: input.nodeExecutionId,
-            level: input.level,
-            message: input.message,
-            metadata: input.metadata || {}
-          })
-          .returning();
-  
-        return newLog;
-      }),
-    
-    removeNode: protectedProcedure
-        .input(z.object({
-            workflowId: z.string(),
-            nodeId: z.string(),
-        }))
-        .mutation(async ({ ctx, input }) => {
-            console.log('Removing node with input:', input);
-            await db
-                .delete(nodeConnections)
-                .where(or(
-                    eq(nodeConnections.sourceNodeId, input.nodeId),
-                    eq(nodeConnections.targetNodeId, input.nodeId)
-                ));
-    
-            // Then delete the node itself
-            const [deletedNode] = await db
-                .delete(buildNodes)
-                .where(and(
-                    eq(buildNodes.id, input.nodeId),
-                    eq(buildNodes.workflowId, input.workflowId)
-                ))
-                .returning();
-    
-            if (!deletedNode) {
-                throw new Error("Failed to delete node or node not found");
-            }
-            
-            console.log('Node deleted from DB:', deletedNode);
-            
-            return { 
-                success: true,
-                deletedNodeId: deletedNode.id,
-                workflowId: input.workflowId // Important: return workflowId for query invalidation
-            };
-        }),
+        )
+        .limit(1);
+
+      if (!execution.length) {
+        throw new Error("Execution not found or unauthorized");
+      }
+
+      const [newLog] = await db
+        .insert(executionLogs)
+        .values({
+          workflowExecutionId: input.workflowExecutionId,
+          nodeExecutionId: input.nodeExecutionId,
+          level: input.level,
+          message: input.message,
+          metadata: input.metadata || {}
+        })
+        .returning();
+
+      return newLog;
+    }),
+
+  updateNode: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      nodeId: z.string(),
+      data: z.record(z.any()),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log('Updating node with input:', input);
+
+      const [updatedNode] = await db
+        .update(buildNodes)
+        .set({
+          data: input.data,
+          // Update name if label is present in data
+          name: input.data.label ? input.data.label : undefined
+        })
+        .where(
+          and(
+            eq(buildNodes.id, input.nodeId),
+            eq(buildNodes.workflowId, input.workflowId)
+          )
+        )
+        .returning();
+
+      if (!updatedNode) {
+        throw new Error("Failed to update node or node not found");
+      }
+
+      console.log('Node updated in DB:', updatedNode);
+
+      return {
+        updatedNode,
+        workflowId: input.workflowId
+      };
+    }),
+
+  removeNode: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      nodeId: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log('Removing node with input:', input);
+      await db
+        .delete(nodeConnections)
+        .where(or(
+          eq(nodeConnections.sourceNodeId, input.nodeId),
+          eq(nodeConnections.targetNodeId, input.nodeId)
+        ));
+
+      // Then delete the node itself
+      const [deletedNode] = await db
+        .delete(buildNodes)
+        .where(and(
+          eq(buildNodes.id, input.nodeId),
+          eq(buildNodes.workflowId, input.workflowId)
+        ))
+        .returning();
+
+      if (!deletedNode) {
+        throw new Error("Failed to delete node or node not found");
+      }
+
+      console.log('Node deleted from DB:', deletedNode);
+
+      return {
+        success: true,
+        deletedNodeId: deletedNode.id,
+        workflowId: input.workflowId // Important: return workflowId for query invalidation
+      };
+    }),
 });

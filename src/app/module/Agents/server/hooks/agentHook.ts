@@ -1,13 +1,13 @@
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery, useQueryClient, UseQueryResult, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-export const useSuspenceAgent = ()=>{
+export const useSuspenceAgent = () => {
   const trpc = useTRPC()
   return useSuspenseQuery(trpc.agent.getMany.queryOptions())
-  
+
 }
 
-export const useCreateAgent = ()=>{
+export const useCreateAgent = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   return useMutation(trpc.agent.create.mutationOptions({
@@ -21,7 +21,7 @@ export const useCreateAgent = ()=>{
     },
   }));
 }
-export const useDeteleteAgent =()=>{
+export const useDeteleteAgent = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   return useMutation(trpc.agent.remove.mutationOptions({
@@ -29,14 +29,14 @@ export const useDeteleteAgent =()=>{
       console.log('Delete response here:', data);
       toast.success(`Agent deleted successfully`);
       queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
-      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.id }));
     },
     onError: (error) => {
       toast.error(`Failed to create agent: ${error.message}`);
     },
   }));
 }
-export const useUpdateAgentName =()=>{
+export const useUpdateAgentName = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   return useMutation(trpc.agent.updateName.mutationOptions({
@@ -44,7 +44,7 @@ export const useUpdateAgentName =()=>{
       console.log(data);
       toast.success(`Agent ${data?.name} updated successfully`);
       queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
-      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.id }));
     },
     onError: (error) => {
       toast.error(`Failed to create agent: ${error.message}`);
@@ -52,16 +52,16 @@ export const useUpdateAgentName =()=>{
   }));
 }
 
-export const useSuspenceAgentId = (id: string)=>{
+export const useSuspenceAgentId = (id: string) => {
   const trpc = useTRPC();
-  return useSuspenseQuery(trpc.agent.getOne.queryOptions({id}))
-  
+  return useSuspenseQuery(trpc.agent.getOne.queryOptions({ id }))
+
 }
 
 export const useCreateNode = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
-  
+
   return useMutation(trpc.agent.createNode.mutationOptions({
     onSuccess: (data) => {
       console.log('Node created successfully:', data);
@@ -75,7 +75,7 @@ export const useCreateNode = () => {
     },
   }));
 };
-export const useUpdateAgent =()=>{
+export const useUpdateAgent = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
   return useMutation(trpc.agent.update.mutationOptions({
@@ -83,7 +83,7 @@ export const useUpdateAgent =()=>{
       console.log(data);
       toast.success(`Agent ${data?.name} updated successfully`);
       queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
-      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.id}));
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.id }));
     },
     onError: (error) => {
       toast.error(`Failed to save agent flow: ${error.message}`);
@@ -95,15 +95,15 @@ export const useUpdateAgent =()=>{
 export const useTriggerWorkflow = () => {
   const queryClient = useQueryClient();
   const trpc = useTRPC();
-  
+
   return useMutation(trpc.agent.triggerWorkflow.mutationOptions({
     onSuccess: (data, variables) => {
       console.log('Workflow triggered:', data);
       toast.success(`Workflow triggered in ${variables.mode} mode`);
       // Invalidate executions query to show the new execution
       queryClient.invalidateQueries({
-        queryKey: trpc.agent.getWorkflowExecutions.queryOptions({ 
-          workflowId: variables.workflowId 
+        queryKey: trpc.agent.getWorkflowExecutions.queryOptions({
+          workflowId: variables.workflowId
         }).queryKey
       });
     },
@@ -116,33 +116,59 @@ export const useTriggerWorkflow = () => {
 
 export const useWorkflowExecutions = (workflowId: string, limit?: number) => {
   const trpc = useTRPC();
-  
+
   return useQuery(
-    trpc.agent.getWorkflowExecutions.queryOptions({ 
-      workflowId, 
-      limit: limit || 50 
+    trpc.agent.getWorkflowExecutions.queryOptions({
+      workflowId,
+      limit: limit || 50
     })
   );
 };
 
 export const useExecutionLogs = (executionId: string) => {
   const trpc = useTRPC();
-  
+
   return useQuery(
     trpc.agent.getExecutionLogs.queryOptions({ executionId })
   );
 };
 
+export const useExecutionDetails = (executionId: string) => {
+  const trpc = useTRPC();
+
+  return useQuery(
+    trpc.agent.getExecutionDetails.queryOptions({ executionId })
+  );
+};
+
+
+export const useUpdateNode = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(trpc.agent.updateNode.mutationOptions({
+    onSuccess: (data) => {
+      console.log('Node update response:', data);
+      toast.success(`Node updated successfully`);
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.workflowId }));
+    },
+    onError: (error) => {
+      console.error('Failed to update node:', error);
+      toast.error(`Failed to update node: ${error.message}`);
+    },
+  }));
+};
+
 export const useRemoveNode = () => {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-    
+
   return useMutation(trpc.agent.removeNode.mutationOptions({
     onSuccess: (data) => {
       console.log('Node deletion response:', data);
       toast.success(`Node deleted successfully`);
-      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.workflowId}))
-      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({id: data.deletedNodeId}));
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.workflowId }))
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: data.deletedNodeId }));
     },
     onError: (error) => {
       toast.error(`Failed to create agent: ${error.message}`);
@@ -153,7 +179,7 @@ export const useRemoveNode = () => {
 // kafka workflow executions
 export const useNodesMany = (workflowId?: string) => {
   const trpc = useTRPC();
-  
+
   return useQuery(
     trpc.kafka.Many.queryOptions({ workflowId: workflowId ?? "" })
   );

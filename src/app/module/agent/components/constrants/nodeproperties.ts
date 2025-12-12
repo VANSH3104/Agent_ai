@@ -2,6 +2,7 @@ import { GoogleFormOutputs } from "../../Nodecomponents/googleform/google-form-o
 import { GoogleFormConfig } from "../../Nodecomponents/googleform/googleformconf";
 import { GoogleFormInputs } from "../../Nodecomponents/googleform/googleformInput";
 import { HttpView } from "../../Nodecomponents/http/httpview";
+import { EmailView } from "../../Nodecomponents/email/emailview";
 
 
 
@@ -13,7 +14,7 @@ export const NodePropertiesConfig: Record<
     Params: React.FC<any> | null;
     Outputs: React.FC<any> | null;
   }
-> = { 
+> = {
   webhook: {
     label: "Webhook",
     Inputs: GoogleFormInputs,
@@ -30,7 +31,7 @@ export const NodePropertiesConfig: Record<
 
   manual: { label: "Manual", Inputs: null, Params: null, Outputs: null },
   http: { label: "HTTP Request", Inputs: null, Params: HttpView, Outputs: null },
-  email: { label: "Email", Inputs: null, Params: null, Outputs: null },
+  email: { label: "Email", Inputs: null, Params: EmailView, Outputs: null },
   code: { label: "Code Execution", Inputs: null, Params: null, Outputs: null },
   database: { label: "Database", Inputs: null, Params: null, Outputs: null },
   schedule: { label: "Schedule", Inputs: null, Params: null, Outputs: null },
