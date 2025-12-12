@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 import { BaseNode } from './base-node';
 import { SiGoogleforms } from 'react-icons/si';
-import { useRemoveNode } from '@/app/module/Agents/server/hooks/agentHook';
+import { useRemoveNode, useWatchNodeStatus } from '@/app/module/Agents/server/hooks/agentHook';
 import { toast } from 'sonner';
+import { NodeStatusIndicator } from '../node-status-indicator';
 
-// Compact Icon-focused Node Component
 const WorkflowNode = memo(({ 
   data, 
   isConnectable,
@@ -39,6 +39,8 @@ const WorkflowNode = memo(({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const removeNodeMutation = useRemoveNode();
+  const status = useWatchNodeStatus(id);
+  console.log(id ,status, "status")
   const handleDelete = (e: React.MouseEvent) => {
       e.stopPropagation();
       
@@ -77,10 +79,11 @@ const WorkflowNode = memo(({
 
   return (
     <div 
-      className="relative"
+      className="relative inline-block"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      <NodeStatusIndicator status={status} variant="overlay">
       <BaseNode 
         className="w-[80px] p-0 overflow-visible transition-all hover:shadow-xl"
         style={{ 
@@ -125,7 +128,7 @@ const WorkflowNode = memo(({
           />
         )}
       </BaseNode>
-
+      </NodeStatusIndicator>
       {/* Hover Actions */}
       {isHovered && (
         <div className="absolute -top-9 left-1/2 -translate-x-1/2 flex gap-1 bg-white rounded-lg shadow-xl border border-gray-300 p-1 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">

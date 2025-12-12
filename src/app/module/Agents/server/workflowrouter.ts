@@ -2,8 +2,8 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { buildNodes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { buildNodes, nodeExecutions,  } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
 import { getWorkflowExecutionService } from "@/services/Workflowexecution";
 
 export const Workflowrouter = createTRPCRouter({
@@ -95,5 +95,35 @@ export const Workflowrouter = createTRPCRouter({
       );
 
       return logs;
+    }),
+
+  getLatestNodeExecutionStatus: protectedProcedure
+    .input(z.object({ 
+      nodeId: z.string() 
+    }))
+    .query(async ({ input, ctx }) => {
+      // Check for latest execution in nodeExecutions table
+      const latestExecution = await db
+        .select(nodeExecutions)
+        .from(nodeExecutions)
+        .where(eq(nodeExecutions.nodeId, input.nodeId))
+        .orderBy(desc(nodeExecutions.startedAt))
+        .limit(1);
+      return { latestExecution }     // If no execution found, return "initial"
+    //   if (latestExecution.length === 0) {
+    //     return "initial";
+    //   }
+  
+    //   // Map to simple status
+    //   switch (latestExecution.status) {
+    //     case "PAUSED":
+    //       return "loading";
+    //     case "SUCCESS":
+    //       return "success";
+    //     case "FAILED":
+    //       return "error";
+    //     default:
+    //       return "initial";
+    //   }
     }),
 });

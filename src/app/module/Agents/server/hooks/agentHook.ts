@@ -198,3 +198,10 @@ export const useTriggerAgent = () => {
     }
   }));
 };
+export const useWatchNodeStatus = (nodeId: string) => {
+  const trpc = useTRPC();
+  
+  return useQuery(
+    trpc.kafka.getLatestNodeExecutionStatus.queryOptions({ nodeId }),
+  );
+};

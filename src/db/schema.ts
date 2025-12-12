@@ -20,7 +20,7 @@ export const nodeTypesEnum = pgEnum("node_types", [
 ]);
 export const executionStatusEnum = pgEnum("execution_status", [
   "PENDING",
-  // "RUNNING", 
+  "RUNNING", 
   "SUCCESS",
   "FAILED",
   "PAUSED",
