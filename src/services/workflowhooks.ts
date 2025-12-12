@@ -56,6 +56,10 @@ export class WorkflowHooksService {
           result = await this.executeSendEmail(context, inputData);
           break;
 
+        case 'AI':
+          result = await this.executeAI(context, inputData);
+          break;
+
         case 'CODE':
           result = await this.executeCode(context, inputData);
           break;
@@ -348,6 +352,205 @@ export class WorkflowHooksService {
     }
   }
 
+  private async executeAI(context: NodeContext, inputData: any): Promise<any> {
+    // Get prompts from nodeData or inputData
+    const systemPrompt = context.nodeData.systemPrompt || '';
+    const configuredPrompt = context.nodeData.userPrompt || '';
+    const temperature = context.nodeData.temperature ?? 0.7;
+    const maxTokens = context.nodeData.maxTokens || 1000;
+
+    // Build the user prompt by combining configured prompt with input data
+    let userPrompt = '';
+
+    // If there's a configured prompt, use it as the base
+    if (configuredPrompt && configuredPrompt.trim()) {
+      userPrompt = configuredPrompt.trim();
+
+      // If there's also input data, append it
+      if (inputData && Object.keys(inputData).length > 0) {
+        const inputDataStr = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
+        userPrompt += '\n\n' + inputDataStr;
+      }
+    } else {
+      // No configured prompt, use input data only
+      if (inputData?.prompt) {
+        userPrompt = inputData.prompt;
+      } else if (inputData?.message) {
+        userPrompt = inputData.message;
+      } else if (inputData && Object.keys(inputData).length > 0) {
+        userPrompt = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
+      }
+    }
+
+    // Validate that we have a user prompt
+    if (!userPrompt || userPrompt.trim() === '' || userPrompt === '{}') {
+      throw new Error('AI node: No prompt provided. Either configure a default prompt or pass data from a previous node.');
+    }
+
+    // Get userId from context
+    const userId = context.userId;
+    if (!userId) {
+      throw new Error('AI node: User ID is required to fetch credentials');
+    }
+
+    console.log(`   🤖 Fetching AI credentials for user: ${userId}`);
+
+    // Fetch AI credentials from database
+    const { db } = await import('@/db');
+    const { credentials } = await import('@/db/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const credentialResult = await db
+      .select()
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.userId, userId),
+          eq(credentials.type, 'AI_API'),
+          eq(credentials.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (credentialResult.length === 0) {
+      throw new Error(
+        'AI node: No AI API credentials configured. Please configure AI credentials in the node settings.'
+      );
+    }
+
+    const aiCreds = credentialResult[0].data as any;
+
+    if (!aiCreds.provider || !aiCreds.apiKey || !aiCreds.model) {
+      throw new Error('AI node: AI credentials are incomplete');
+    }
+
+    console.log(`   🤖 Using AI provider: ${aiCreds.provider}`);
+    console.log(`   🤖 Model: ${aiCreds.model}`);
+    console.log(`   🤖 Temperature: ${temperature}`);
+    console.log(`   🤖 System Prompt:`, systemPrompt || '(none)');
+    console.log(`   🤖 Configured Prompt:`, configuredPrompt || '(none)');
+    console.log(`   🤖 Input Data:`, inputData ? JSON.stringify(inputData).substring(0, 100) + '...' : '(none)');
+    console.log(`   🤖 Final User Prompt (first 200 chars):`, userPrompt.substring(0, 200) + '...');
+
+    try {
+      let response: string;
+
+      if (aiCreds.provider === 'openai') {
+        // OpenAI implementation
+        const OpenAI = (await import('openai')).default;
+        const openai = new OpenAI({
+          apiKey: aiCreds.apiKey,
+        });
+
+        const messages: any[] = [];
+        if (systemPrompt) {
+          messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: userPrompt });
+
+        console.log(`   📤 Sending request to OpenAI...`);
+        const completion = await openai.chat.completions.create({
+          model: aiCreds.model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        });
+
+        response = completion.choices[0]?.message?.content || '';
+        console.log(`   ✔ OpenAI response received (${completion.usage?.total_tokens} tokens)`);
+
+      } else if (aiCreds.provider === 'anthropic') {
+        // Anthropic Claude implementation
+        const response_fetch = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': aiCreds.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: aiCreds.model,
+            max_tokens: maxTokens,
+            temperature,
+            system: systemPrompt || undefined,
+            messages: [
+              { role: 'user', content: userPrompt }
+            ],
+          }),
+        });
+
+        if (!response_fetch.ok) {
+          const errorText = await response_fetch.text();
+          throw new Error(`Anthropic API error: ${response_fetch.status} - ${errorText}`);
+        }
+
+        const data = await response_fetch.json();
+        response = data.content[0]?.text || '';
+        console.log(`   ✔ Anthropic response received`);
+
+      } else if (aiCreds.provider === 'google') {
+        // Google Gemini implementation
+        const google_url = `https://generativelanguage.googleapis.com/v1beta/models/${aiCreds.model}:generateContent?key=${aiCreds.apiKey}`;
+
+        // userPrompt already contains configured prompt + input data combined
+        const prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
+
+        console.log(`   📤 Sending to Google Gemini...`);
+        console.log(`   📤 Prompt preview:`, prompt.substring(0, 200));
+
+        const response_fetch = await fetch(google_url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens: maxTokens,
+            },
+          }),
+        });
+
+        if (!response_fetch.ok) {
+          const errorText = await response_fetch.text();
+          console.error(`   ❌ Google Gemini error response:`, errorText);
+          throw new Error(`Google Gemini API error: ${response_fetch.status} - ${errorText}`);
+        }
+
+        const data = await response_fetch.json();
+        response = data.candidates[0]?.content?.parts[0]?.text || '';
+        console.log(`   ✔ Google Gemini response received`);
+
+      } else {
+        throw new Error(`Unsupported AI provider: ${aiCreds.provider}`);
+      }
+
+      console.log(`   ✔ AI processing complete!`);
+      console.log(`   ✔ Response length: ${response.length} characters`);
+      console.log(`   ✔ Response preview:`, response.substring(0, 150) + '...');
+
+      // Return only the AI response text for cleaner output
+      return response;
+
+    } catch (error: any) {
+      console.error(`   ❌ AI execution failed:`, error.message);
+
+      let errorMessage = `Failed to get AI response: ${error.message}`;
+
+      if (error.message.includes('401') || error.message.includes('authentication')) {
+        errorMessage += '\n\n🔐 Authentication failed. Please check your API key.';
+      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+        errorMessage += '\n\n💳 API quota exceeded. Check your account limits.';
+      } else if (error.message.includes('model')) {
+        errorMessage += '\n\n🤖 Model error. Verify the model name is correct for your provider.';
+      }
+
+      throw new Error(errorMessage);
+    }
+  }
 
   private async executeCode(context: NodeContext, inputData: any): Promise<any> {
     const { code, language = 'javascript' } = context.nodeData;

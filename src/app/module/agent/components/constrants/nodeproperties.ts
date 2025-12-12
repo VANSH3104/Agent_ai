@@ -3,6 +3,7 @@ import { GoogleFormConfig } from "../../Nodecomponents/googleform/googleformconf
 import { GoogleFormInputs } from "../../Nodecomponents/googleform/googleformInput";
 import { HttpView } from "../../Nodecomponents/http/httpview";
 import { EmailView } from "../../Nodecomponents/email/emailview";
+import { AIView } from "../../Nodecomponents/ai/ai-view";
 
 
 
@@ -32,6 +33,7 @@ export const NodePropertiesConfig: Record<
   manual: { label: "Manual", Inputs: null, Params: null, Outputs: null },
   http: { label: "HTTP Request", Inputs: null, Params: HttpView, Outputs: null },
   email: { label: "Email", Inputs: null, Params: EmailView, Outputs: null },
+  ai: { label: "AI", Inputs: null, Params: AIView, Outputs: null },
   code: { label: "Code Execution", Inputs: null, Params: null, Outputs: null },
   database: { label: "Database", Inputs: null, Params: null, Outputs: null },
   schedule: { label: "Schedule", Inputs: null, Params: null, Outputs: null },

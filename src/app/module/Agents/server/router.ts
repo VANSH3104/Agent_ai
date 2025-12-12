@@ -17,6 +17,7 @@ const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'DATABASE': 'database',
   'EMAIL': 'email',
   'CODE': 'code',
+  'AI': 'ai',
   'CONDITION': 'condition',
   'FILTER': 'filter',
   'INITIAL': 'initial'

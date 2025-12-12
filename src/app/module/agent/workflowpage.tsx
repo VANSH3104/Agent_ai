@@ -16,7 +16,8 @@ import {
   Send,
   FileCode,
   Split,
-  Shuffle
+  Shuffle,
+  Brain
 } from 'lucide-react';
 import { SiGoogleforms } from 'react-icons/si';
 
@@ -28,6 +29,7 @@ const iconMap: Record<string, any> = {
   'Globe2': Globe2,
   'Database': Database,
   'Send': Send,
+  'Brain': Brain,
   'FileCode': FileCode,
   'Split': Split,
   'SiGoogleforms': SiGoogleforms,

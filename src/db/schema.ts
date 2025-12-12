@@ -1,5 +1,5 @@
-import {relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb , integer } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { pgTable, text, timestamp, boolean, uniqueIndex, pgEnum, jsonb, integer } from "drizzle-orm/pg-core";
 
 
 import { nanoid } from "nanoid";
@@ -8,19 +8,20 @@ import { nanoid } from "nanoid";
 export const nodeTypesEnum = pgEnum("node_types", [
   "INITIAL",
   "WEBHOOK",
-  "MANUAL", 
+  "MANUAL",
   "SCHEDULE",
   "HTTP",
   "DATABASE",
   "EMAIL",
+  "AI",
   "GOOGLEFORM",
   "CODE",
-  "CONDITION",  
+  "CONDITION",
   "FILTER"
 ]);
 export const executionStatusEnum = pgEnum("execution_status", [
   "PENDING",
-  "RUNNING", 
+  "RUNNING",
   "SUCCESS",
   "FAILED",
   "PAUSED",
@@ -49,7 +50,7 @@ export const user = pgTable("user", {
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  
+
 });
 
 // === SESSIONS ===
@@ -72,7 +73,7 @@ export const credentials = pgTable("credentials", {
   description: text("description"),
   isActive: boolean("is_active").default(true).notNull(),
   expiresAt: timestamp("expires_at"),
-  
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [

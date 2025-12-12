@@ -11,7 +11,8 @@ import {
   Split,
   Shuffle,
   Trash2,
-  Settings
+  Settings,
+  Brain
 } from 'lucide-react';
 import { BaseNode } from './base-node';
 import { SiGoogleforms } from 'react-icons/si';
@@ -270,6 +271,18 @@ export const EmailNode = memo((props: NodeProps) => (
 ));
 
 EmailNode.displayName = 'EmailNode';
+
+// AI Node - Action
+export const AINode = memo((props: NodeProps) => (
+  <WorkflowNode
+    {...props}
+    icon={Brain}
+    bgColor="#3bf56c"
+    borderColor="#0FFF71"
+  />
+));
+
+AINode.displayName = 'AINode';
 
 // Code Node - Action
 export const CodeNode = memo((props: NodeProps) => (

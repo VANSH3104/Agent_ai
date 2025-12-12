@@ -68,11 +68,37 @@ export const LogViewer = ({ nodeId, workflowId, type }: LogViewerProps) => {
                     {nodeExecution.status}
                 </span>
             </div>
-            <div className="flex-1 overflow-auto p-2">
-                <pre className="text-xs font-mono text-gray-600 whitespace-pre-wrap break-all">
-                    {JSON.stringify(displayData, null, 2)}
-                </pre>
+
+            <div className="flex-1 overflow-auto p-2 space-y-2">
+                {/* Show error message if failed */}
+                {nodeExecution.status === 'FAILED' && nodeExecution.error && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                        <div className="flex items-start gap-2">
+                            <span className="text-red-600 text-sm font-semibold">❌ Error:</span>
+                        </div>
+                        <pre className="text-xs font-mono text-red-700 whitespace-pre-wrap break-all mt-2">
+                            {nodeExecution.error}
+                        </pre>
+                    </div>
+                )}
+
+                {/* Show output/input data */}
+                {displayData && Object.keys(displayData).length > 0 ? (
+                    <div>
+                        <div className="text-[10px] font-semibold text-gray-500 uppercase mb-1">
+                            {type === 'output' ? 'Output Data' : 'Input Data'}
+                        </div>
+                        <pre className="text-xs font-mono text-gray-600 whitespace-pre-wrap break-all">
+                            {JSON.stringify(displayData, null, 2)}
+                        </pre>
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-400 italic">
+                        No {type} data
+                    </div>
+                )}
             </div>
+
             <div className="bg-gray-50 px-3 py-1 border-t border-gray-200 text-[10px] text-gray-400">
                 {new Date(nodeExecution.startedAt).toLocaleString()}
             </div>

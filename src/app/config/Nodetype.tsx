@@ -1,7 +1,7 @@
 import { NodeTypes } from '@xyflow/react';
-import { 
+import {
   WebhookNode, ManualNode, ScheduleNode,
-  HttpNode, DatabaseNode, EmailNode, CodeNode,
+  HttpNode, DatabaseNode, EmailNode, AINode, CodeNode,
   ConditionNode, FilterNode, GoogleformsNode
 } from '@/components/otherUi/customnode';
 
@@ -14,6 +14,7 @@ export const nodeComponents: NodeTypes = {
   googleform: GoogleformsNode,
   database: DatabaseNode,
   email: EmailNode,
+  ai: AINode,
   code: CodeNode,
   condition: ConditionNode,
   filter: FilterNode,

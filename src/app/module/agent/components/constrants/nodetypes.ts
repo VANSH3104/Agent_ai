@@ -1,14 +1,15 @@
 // types/node-configs.ts
-import { 
-  Webhook, 
-  Play, 
-  Calendar, 
-  Globe2, 
-  Database, 
-  Send, 
-  FileCode, 
-  Split, 
-  Shuffle
+import {
+  Webhook,
+  Play,
+  Calendar,
+  Globe2,
+  Database,
+  Send,
+  FileCode,
+  Split,
+  Shuffle,
+  Brain
 } from 'lucide-react';
 import { SiGoogleforms } from "react-icons/si";
 
@@ -588,6 +589,80 @@ export const NODE_CONFIGS: Record<string, NodeConfig> = {
         type: 'string',
         description: 'Send status',
         sampleData: 'sent',
+      },
+    ],
+  },
+
+  AI: {
+    type: 'AI',
+    displayName: 'AI',
+    description: 'Call AI models (OpenAI, Claude, Gemini)',
+    icon: Brain,
+    iconName: 'Brain',
+    color: 'bg-green-500',
+    category: 'Actions',
+    inputs: [
+      {
+        id: 'prompt',
+        name: 'Prompt',
+        type: 'string',
+        placeholder: 'User message or data from previous node',
+        description: 'Dynamic prompt from previous nodes'
+      },
+    ],
+    parameters: [
+      {
+        id: 'systemPrompt',
+        name: 'System Prompt',
+        type: 'textarea',
+        placeholder: 'You are a helpful assistant that...',
+        description: 'Set the AI\'s behavior and personality (optional)'
+      },
+      {
+        id: 'userPrompt',
+        name: 'Default User Prompt',
+        type: 'textarea',
+        placeholder: 'Analyze the following data...',
+        description: 'Default prompt (overridden by input data)'
+      },
+      {
+        id: 'temperature',
+        name: 'Temperature',
+        type: 'number',
+        defaultValue: 0.7,
+        validation: { min: 0, max: 2 },
+        description: 'Control randomness (0=focused, 2=creative)'
+      },
+      {
+        id: 'maxTokens',
+        name: 'Max Tokens',
+        type: 'number',
+        defaultValue: 1000,
+        validation: { min: 1, max: 4000 },
+        description: 'Maximum response length'
+      },
+    ],
+    outputs: [
+      {
+        id: 'response',
+        name: 'AI Response',
+        type: 'string',
+        description: 'Generated text from AI',
+        sampleData: 'The analysis shows that...',
+      },
+      {
+        id: 'model',
+        name: 'Model Used',
+        type: 'string',
+        description: 'Which AI model was used',
+        sampleData: 'gpt-4',
+      },
+      {
+        id: 'provider',
+        name: 'Provider',
+        type: 'string',
+        description: 'AI provider (openai/anthropic/google)',
+        sampleData: 'openai',
       },
     ],
   },
