@@ -27,6 +27,19 @@ export const executionStatusEnum = pgEnum("execution_status", [
   "CANCELLED",
   "WAITING"
 ]);
+export const credentialTypesEnum = pgEnum("credential_types", [
+  "EMAIL_SMTP",
+  "EMAIL_IMAP",
+  "OAUTH2",
+  "API_KEY",
+  "DATABASE",
+  "WEBHOOK",
+  "AI_API",
+  "GOOGLE",
+  "AWS",
+  "AZURE",
+  "CUSTOM"
+]);
 // === USERS ===
 export const user = pgTable("user", {
   id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
@@ -50,7 +63,21 @@ export const session = pgTable("session", {
   userAgent: text("user_agent"),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
-
+export const credentials = pgTable("credentials", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid(12)),
+  name: text("name").notNull(),
+  type: credentialTypesEnum("type").notNull(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  expiresAt: timestamp("expires_at"),
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('credentials_user_name_idx').on(table.userId, table.name)
+]);
 // === AUTH ACCOUNTS ===
 export const account = pgTable("account", {
   id: text("id").primaryKey().$defaultFn(() => nanoid(12)),

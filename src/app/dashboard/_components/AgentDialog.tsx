@@ -17,9 +17,9 @@ import { CiSquarePlus } from "react-icons/ci"
 import { useRouter } from "next/navigation"
 
 import { useTRPC } from "@/trpc/client"
-import { useMutation} from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { z } from "zod"
-import { WorkflowSchema } from "@/app/module/agents/schema/WorkflowSchema"
+import { WorkflowSchema } from "@/app/module/agent/schema/WorkflowSchema"
 
 export function AgentDialog() {
   const router = useRouter();
@@ -34,31 +34,31 @@ export function AgentDialog() {
         setOpen(false);
         setInput({ name: '', description: '' });
         if (data?.id) {
-        router.push(`/workflow/${data.id}`);
-      } else {
-        alert("No ID returned from server");
-      }
+          router.push(`/workflow/${data.id}`);
+        } else {
+          alert("No ID returned from server");
+        }
       },
       onError: () => {
         alert("failed to create workflow try again");
       }
     })
   )
-    
-  const onSubmit = async(values: z.infer<typeof WorkflowSchema>) => {
-    
+
+  const onSubmit = async (values: z.infer<typeof WorkflowSchema>) => {
+
     try {
       try {
-       const work = createWorkflow.mutate(values);
-       console.log(work , "work")
+        const work = createWorkflow.mutate(values);
+        console.log(work, "work")
       } catch {
-          alert("there is mistake")
+        alert("there is mistake")
       }
     } catch {
       alert("there is mistake 2")
     }
   }
-   
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -70,10 +70,10 @@ export function AgentDialog() {
           </div>
         </Button>
       </DialogTrigger>
- 
+
       <DialogContent className="sm:max-w-[500px] bg-white dark:bg-gray-900 border-0 shadow-2xl rounded-2xl overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
-        
+
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -92,11 +92,11 @@ export function AgentDialog() {
               Design and configure your workflow to automate processes efficiently.
             </DialogDescription>
           </DialogHeader>
- 
+
           <div className="space-y-6 px-1">
             <div className="space-y-3">
-              <Label 
-                htmlFor="name" 
+              <Label
+                htmlFor="name"
                 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2"
               >
                 <div className="w-2 h-2 bg-purple-500 rounded-full" />
@@ -118,8 +118,8 @@ export function AgentDialog() {
             </div>
 
             <div className="space-y-3">
-              <Label 
-                htmlFor="description" 
+              <Label
+                htmlFor="description"
                 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2"
               >
                 <div className="w-2 h-2 bg-indigo-500 rounded-full" />
@@ -140,19 +140,19 @@ export function AgentDialog() {
               </div>
             </div>
           </div>
- 
+
           <DialogFooter className="flex gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
             <DialogClose asChild>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 type="button"
                 className="flex-1 h-12 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors duration-200 font-semibold"
               >
                 Cancel
               </Button>
             </DialogClose>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={createWorkflow.isPending || !input.name.trim()}
               className="flex-1 h-12 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg"
             >
