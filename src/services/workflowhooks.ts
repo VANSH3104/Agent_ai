@@ -379,19 +379,19 @@ export class WorkflowHooksService {
       .replace(/\n?```\s*$/gm, '')
       .trim();
   }
-  
-  
+
+
   private async executeAI(context: NodeContext, inputData: any): Promise<any> {
     const systemPrompt = context.nodeData.systemPrompt || '';
     const configuredPrompt = context.nodeData.userPrompt || '';
     const temperature = context.nodeData.temperature ?? 0.7;
     const configuredMaxTokens = context.nodeData.maxTokens || 1000;
-  
+
     let userPrompt = '';
-  
+
     if (configuredPrompt && configuredPrompt.trim()) {
       userPrompt = configuredPrompt.trim();
-  
+
       if (inputData && Object.keys(inputData).length > 0) {
         const inputDataStr = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
         userPrompt += '\n\n' + inputDataStr;
@@ -405,22 +405,22 @@ export class WorkflowHooksService {
         userPrompt = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
       }
     }
-  
+
     if (!userPrompt || userPrompt.trim() === '' || userPrompt === '{}') {
       throw new Error('AI node: No prompt provided. Either configure a default prompt or pass data from a previous node.');
     }
-  
+
     const userId = context.userId;
     if (!userId) {
       throw new Error('AI node: User ID is required to fetch credentials');
     }
-  
+
     console.log(`Fetching AI credentials for user: ${userId}`);
-  
+
     const { db } = await import('@/db');
     const { credentials } = await import('@/db/schema');
     const { eq, and } = await import('drizzle-orm');
-  
+
     const credentialResult = await db
       .select()
       .from(credentials)
@@ -432,25 +432,28 @@ export class WorkflowHooksService {
         )
       )
       .limit(1);
-  
+
     if (credentialResult.length === 0) {
       throw new Error(
         'AI node: No AI API credentials configured. Please configure AI credentials in the node settings.'
       );
     }
-  
+
     const aiCreds = credentialResult[0].data as any;
-  
+
     if (!aiCreds.provider || !aiCreds.apiKey) {
       throw new Error('AI node: AI credentials are incomplete');
     }
-  
+
+    // Normalize provider to lowercase for case-insensitive matching
+    aiCreds.provider = aiCreds.provider.trim().toLowerCase();
+
     if (aiCreds.provider !== 'openrouter' && !aiCreds.model) {
       throw new Error('AI node: Model is required for this provider');
     }
-  
+
     const maxTokens = this.getValidatedMaxTokens(aiCreds.provider, configuredMaxTokens);
-  
+
     console.log(`Using AI provider: ${aiCreds.provider}`);
     console.log(`Model: ${aiCreds.model || '(OpenRouter will use default)'}`);
     console.log(`Temperature: ${temperature}`);
@@ -459,22 +462,22 @@ export class WorkflowHooksService {
     console.log(`Configured Prompt:`, configuredPrompt || '(none)');
     console.log(`Input Data:`, inputData ? JSON.stringify(inputData).substring(0, 100) + '...' : '(none)');
     console.log(`Final User Prompt (first 200 chars):`, userPrompt.substring(0, 200) + '...');
-  
+
     try {
       let response: string;
-  
+
       if (aiCreds.provider === 'openai') {
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({
           apiKey: aiCreds.apiKey,
         });
-  
+
         const messages: any[] = [];
         if (systemPrompt) {
           messages.push({ role: 'system', content: systemPrompt });
         }
         messages.push({ role: 'user', content: userPrompt });
-  
+
         console.log(`Sending request to OpenAI...`);
         const completion = await openai.chat.completions.create({
           model: aiCreds.model || 'gpt-3.5-turbo',
@@ -482,10 +485,10 @@ export class WorkflowHooksService {
           temperature,
           max_tokens: maxTokens,
         });
-  
+
         response = completion.choices[0]?.message?.content || '';
         console.log(`OpenAI response received (${completion.usage?.total_tokens} tokens)`);
-  
+
       } else if (aiCreds.provider === 'anthropic') {
         const response_fetch = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -504,16 +507,16 @@ export class WorkflowHooksService {
             ],
           }),
         });
-  
+
         if (!response_fetch.ok) {
           const errorText = await response_fetch.text();
           throw new Error(`Anthropic API error: ${response_fetch.status} - ${errorText}`);
         }
-  
+
         const data = await response_fetch.json();
         response = data.content[0]?.text || '';
         console.log(`Anthropic response received`);
-  
+
       } else if (aiCreds.provider === 'google') {
         let google_url;
         if (aiCreds.model?.includes('gemini-2.0') || aiCreds.model?.includes('gemini-2.5')) {
@@ -521,13 +524,13 @@ export class WorkflowHooksService {
         } else {
           google_url = `https://generativelanguage.googleapis.com/v1/models/${aiCreds.model || 'gemini-pro'}:generateContent?key=${aiCreds.apiKey}`;
         }
-  
+
         const prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
-  
+
         console.log(`Sending to Google Gemini...`);
         console.log(`Endpoint: ${google_url}`);
         console.log(`Prompt preview:`, prompt.substring(0, 200));
-  
+
         const response_fetch = await fetch(google_url, {
           method: 'POST',
           headers: {
@@ -543,11 +546,11 @@ export class WorkflowHooksService {
             },
           }),
         });
-  
+
         if (!response_fetch.ok) {
           const errorText = await response_fetch.text();
           console.error(`Google Gemini error response:`, errorText);
-  
+
           try {
             const errorJson = JSON.parse(errorText);
             if (errorJson.error?.message) {
@@ -557,46 +560,46 @@ export class WorkflowHooksService {
             throw new Error(`Google Gemini API error: ${response_fetch.status} - ${errorText.substring(0, 200)}`);
           }
         }
-  
+
         const data = await response_fetch.json();
-  
+
         if (!data.candidates || data.candidates.length === 0) {
           if (data.promptFeedback?.blockReason) {
             throw new Error(`Response blocked: ${data.promptFeedback.blockReason}`);
           }
           throw new Error('No response candidates returned from Gemini');
         }
-  
+
         response = data.candidates[0]?.content?.parts[0]?.text || '';
         console.log(`Google Gemini response received`);
-  
+
       } else if (aiCreds.provider === 'openrouter') {
         console.log(`Sending request to OpenRouter...`);
-  
+
         const siteUrl = context.siteUrl || 'https://app.n8n.io';
         const siteName = context.siteName || 'n8n Workflow';
-  
+
         const headers: Record<string, string> = {
           'Authorization': `Bearer ${aiCreds.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': siteUrl,
           'X-Title': siteName,
         };
-  
+
         if (aiCreds.openrouterProvider) {
           headers['X-OpenRouter-Provider'] = aiCreds.openrouterProvider;
         }
-  
+
         const messages: any[] = [];
         if (systemPrompt) {
           messages.push({ role: 'system', content: systemPrompt });
         }
-  
+
         if (inputData?.multimedia && Array.isArray(inputData.multimedia)) {
           const content: any[] = [
             { type: 'text', text: userPrompt }
           ];
-  
+
           for (const media of inputData.multimedia) {
             if (media.type === 'image' && media.url) {
               content.push({
@@ -618,7 +621,7 @@ export class WorkflowHooksService {
               });
             }
           }
-  
+
           messages.push({
             role: 'user',
             content
@@ -626,14 +629,14 @@ export class WorkflowHooksService {
         } else {
           messages.push({ role: 'user', content: userPrompt });
         }
-  
+
         const requestBody: any = {
           model: aiCreds.model || 'google/gemini-2.0-flash',
           messages,
           temperature,
           max_tokens: maxTokens,
         };
-  
+
         if (aiCreds.top_p !== undefined) {
           requestBody.top_p = aiCreds.top_p;
         }
@@ -646,20 +649,20 @@ export class WorkflowHooksService {
         if (aiCreds.presence_penalty !== undefined) {
           requestBody.presence_penalty = aiCreds.presence_penalty;
         }
-  
+
         console.log(`Using model: ${requestBody.model}`);
         console.log(`Headers:`, Object.keys(headers).join(', '));
-  
+
         const response_fetch = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers,
           body: JSON.stringify(requestBody),
         });
-  
+
         if (!response_fetch.ok) {
           const errorText = await response_fetch.text();
           console.error(`OpenRouter error response:`, errorText);
-  
+
           try {
             const errorJson = JSON.parse(errorText);
             if (errorJson.error?.message) {
@@ -669,35 +672,35 @@ export class WorkflowHooksService {
             throw new Error(`OpenRouter API error: ${response_fetch.status} - ${errorText.substring(0, 200)}`);
           }
         }
-  
+
         const data = await response_fetch.json();
-  
+
         if (data.usage) {
           console.log(`OpenRouter usage - Prompt: ${data.usage.prompt_tokens}, Completion: ${data.usage.completion_tokens}, Total: ${data.usage.total_tokens}`);
         }
-  
+
         if (data.model) {
           console.log(`Model used: ${data.model}`);
         }
-  
+
         response = data.choices[0]?.message?.content || '';
         console.log(`OpenRouter response received`);
-  
+
       } else {
         throw new Error(`Unsupported AI provider: ${aiCreds.provider}`);
       }
-  
+
       console.log(`AI processing complete!`);
       console.log(`Response length: ${response.length} characters`);
       console.log(`Response preview:`, response.substring(0, 150) + '...');
-  
+
       // IMPROVED JSON PARSING WITH MARKDOWN STRIPPING
       try {
         const trimmedResponse = response.trim();
-        
+
         // Strip markdown code fences before parsing
         const cleanedResponse = this.stripMarkdownCodeFences(trimmedResponse);
-        
+
         if ((cleanedResponse.startsWith('{') && cleanedResponse.endsWith('}')) ||
           (cleanedResponse.startsWith('[') && cleanedResponse.endsWith(']'))) {
           const parsed = JSON.parse(cleanedResponse);
@@ -707,20 +710,20 @@ export class WorkflowHooksService {
       } catch (e) {
         console.log(`Response is plain text (JSON parse failed: ${e})`);
       }
-  
+
       return response;
-  
+
     } catch (error: any) {
       console.error(`AI execution failed:`, error.message);
       console.error(`Stack trace:`, error.stack);
-  
+
       let errorMessage = `Failed to get AI response: ${error.message}`;
-  
+
       if (error.message.includes('401') || error.message.includes('authentication')) {
         errorMessage += '\n\nAuthentication failed. Please check your API key.';
       } else if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('limit') || error.message.includes('rate limit')) {
         errorMessage += '\n\nAPI quota/rate limit exceeded. Check your account limits.';
-  
+
         if (aiCreds.provider === 'google') {
           errorMessage += '\n\nGoogle Gemini free tier: 20 requests/day per model';
           errorMessage += '\nUpgrade at: https://makersuite.google.com/app/apikey';
@@ -734,7 +737,7 @@ export class WorkflowHooksService {
         }
       } else if (error.message.includes('invalid api key') || error.message.includes('API key not valid')) {
         errorMessage += '\n\nInvalid API key. Please check your credentials.';
-  
+
         if (aiCreds.provider === 'openrouter') {
           errorMessage += '\nGet OpenRouter key: https://openrouter.ai/keys';
         } else if (aiCreds.provider === 'google') {
@@ -745,7 +748,7 @@ export class WorkflowHooksService {
           errorMessage += '\nGet Anthropic key: https://console.anthropic.com/account/keys';
         }
       }
-  
+
       throw new Error(errorMessage);
     }
   }

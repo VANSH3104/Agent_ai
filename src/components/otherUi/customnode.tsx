@@ -328,12 +328,21 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
   };
 
   const orgstatus = mapStatus(status?.status);
+  const removeNodeMutation = useRemoveNode();
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (data?.onDelete) {
-      data.onDelete(id);
+
+    if (!data?.workflowId) {
+      console.error('Missing workflowId in node data');
+      toast.error('Cannot delete node: Missing workflow information');
+      return;
     }
+
+    removeNodeMutation.mutate({
+      workflowId: data.workflowId,
+      nodeId: id
+    });
   };
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -351,13 +360,13 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* Input Handle - Top */}
+        {/* INPUT Handle - Top (Only one input) */}
         <Handle
           type="target"
           position={Position.Top}
           isConnectable={isConnectable}
           className="!w-2.5 !h-2.5 !bg-white !border-2 !border-amber-600 !rounded-full"
-          style={{ left: '50%', top: '-6px' }}
+          style={{ left: '50%', transform: 'translateX(-50%)', top: '-6px' }}
         />
 
         {/* Diamond Shape */}
@@ -385,25 +394,33 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
           </div>
         </div>
 
-        {/* Output Handle - Right (TRUE) */}
+        {/* OUTPUT Handle - Right (TRUE) - Green */}
         <Handle
           type="source"
           position={Position.Right}
           id="true"
           isConnectable={isConnectable}
           className="!w-2.5 !h-2.5 !bg-green-500 !border-2 !border-green-700 !rounded-full"
-          style={{ top: '40px', right: '-6px' }}
+          style={{ top: '50%', transform: 'translateY(-50%)', right: '-6px' }}
         />
 
-        {/* Output Handle - Bottom (FALSE) */}
+        {/* OUTPUT Handle - Left (FALSE) - Red */}
         <Handle
           type="source"
-          position={Position.Bottom}
+          position={Position.Left}
           id="false"
           isConnectable={isConnectable}
           className="!w-2.5 !h-2.5 !bg-red-500 !border-2 !border-red-700 !rounded-full"
-          style={{ left: '40px', bottom: '27px' }}
+          style={{ top: '50%', transform: 'translateY(-50%)', left: '-6px' }}
         />
+
+        {/* Labels for outputs */}
+        <div className="absolute text-[8px] font-bold text-green-600" style={{ right: '-20px', top: '35px' }}>
+          T
+        </div>
+        <div className="absolute text-[8px] font-bold text-red-600" style={{ left: '-20px', top: '35px' }}>
+          F
+        </div>
 
         {/* Hover Actions */}
         {isHovered && (
@@ -428,6 +445,7 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
     </NodeStatusIndicator>
   );
 });
+
 
 ConditionNode.displayName = 'ConditionNode';
 
