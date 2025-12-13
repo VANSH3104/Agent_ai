@@ -1,6 +1,6 @@
-import { GoogleFormOutputs } from "../../Nodecomponents/googleform/google-form-outputs";
-import { GoogleFormConfig } from "../../Nodecomponents/googleform/googleformconf";
-import { GoogleFormInputs } from "../../Nodecomponents/googleform/googleformInput";
+import { GoogleSheetOutputs } from "../../Nodecomponents/googlesheet/googlesheet-outputs";
+import { GoogleSheetConfig } from "../../Nodecomponents/googlesheet/googlesheet-config";
+import { GoogleSheetInputs } from "../../Nodecomponents/googlesheet/googlesheet-inputs";
 import { HttpView } from "../../Nodecomponents/http/httpview";
 import { EmailView } from "../../Nodecomponents/email/emailview";
 import { AIView } from "../../Nodecomponents/ai/ai-view";
@@ -9,6 +9,8 @@ import { FilterView } from "../../Nodecomponents/filter/filter-view";
 import { ConditionView } from "../../Nodecomponents/condition/condition-view";
 import { ScheduleView } from "../../Nodecomponents/schedule/schedule-view";
 import { WebhookView } from "../../Nodecomponents/webhook/webhook-view";
+import { SlackView } from "../../Nodecomponents/slack/slack-view";
+import { DiscordView } from "../../Nodecomponents/discord/discord-view";
 
 
 
@@ -29,11 +31,11 @@ export const NodePropertiesConfig: Record<
     Outputs: null,
   },
 
-  googleform: {
-    label: "Google Form",
-    Inputs: GoogleFormInputs,
-    Params: GoogleFormConfig,
-    Outputs: GoogleFormOutputs,
+  googlesheet: {
+    label: "Google Sheet",
+    Inputs: null,
+    Params: GoogleSheetConfig,
+    Outputs: null,
   },
 
   manual: { label: "Manual", Inputs: null, Params: null, Outputs: null },
@@ -45,4 +47,6 @@ export const NodePropertiesConfig: Record<
   schedule: { label: "Schedule", Inputs: null, Params: ScheduleView, Outputs: null },
   filter: { label: "Filter", Inputs: null, Params: FilterView, Outputs: null },
   condition: { label: "Condition", Inputs: null, Params: ConditionView, Outputs: null },
+  slack: { label: "Slack", Inputs: null, Params: SlackView, Outputs: null },
+  discord: { label: "Discord", Inputs: null, Params: DiscordView, Outputs: null },
 };

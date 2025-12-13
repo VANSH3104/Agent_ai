@@ -14,10 +14,12 @@ export const nodeTypesEnum = pgEnum("node_types", [
   "DATABASE",
   "EMAIL",
   "AI",
-  "GOOGLEFORM",
+  "GOOGLESHEET",
   "CODE",
   "CONDITION",
-  "FILTER"
+  "FILTER",
+  "SLACK",
+  "DISCORD"
 ]);
 export const executionStatusEnum = pgEnum("execution_status", [
   "PENDING",
@@ -39,6 +41,8 @@ export const credentialTypesEnum = pgEnum("credential_types", [
   "GOOGLE",
   "AWS",
   "AZURE",
+  "SLACK",
+  "DISCORD",
   "CUSTOM"
 ]);
 // === USERS ===

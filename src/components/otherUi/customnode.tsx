@@ -12,7 +12,9 @@ import {
   Shuffle,
   Trash2,
   Settings,
-  Brain
+  Brain,
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { BaseNode } from './base-node';
 import { SiGoogleforms } from 'react-icons/si';
@@ -460,3 +462,39 @@ export const FilterNode = memo((props: NodeProps) => (
 ));
 
 FilterNode.displayName = 'FilterNode';
+
+// Google Sheet Node - Actions
+export const GoogleSheetNode = memo((props: NodeProps) => (
+  <WorkflowNode
+    {...props}
+    icon={SiGoogleforms}
+    bgColor="#16a34a"
+    borderColor="#15803d"
+  />
+));
+
+GoogleSheetNode.displayName = 'GoogleSheetNode';
+
+// Slack Node - Communication/Actions
+export const SlackNode = memo((props: NodeProps) => (
+  <WorkflowNode
+    {...props}
+    icon={MessageSquare}
+    bgColor="#9333ea"
+    borderColor="#7e22ce"
+  />
+));
+
+SlackNode.displayName = 'SlackNode';
+
+// Discord Node - Communication/Actions
+export const DiscordNode = memo((props: NodeProps) => (
+  <WorkflowNode
+    {...props}
+    icon={MessageCircle}
+    bgColor="#6366f1"
+    borderColor="#4f46e5"
+  />
+));
+
+DiscordNode.displayName = 'DiscordNode';

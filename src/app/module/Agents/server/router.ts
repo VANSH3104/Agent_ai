@@ -12,7 +12,7 @@ const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'WEBHOOK': 'webhook',
   'MANUAL': 'manual',
   'SCHEDULE': 'schedule',
-  'GOOGLEFORM': 'googleform',
+  'GOOGLESHEET': 'googlesheet',
   'HTTP': 'http',
   'DATABASE': 'database',
   'EMAIL': 'email',
@@ -20,6 +20,8 @@ const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'AI': 'ai',
   'CONDITION': 'condition',
   'FILTER': 'filter',
+  'SLACK': 'slack',
+  'DISCORD': 'discord',
   'INITIAL': 'initial'
 };
 

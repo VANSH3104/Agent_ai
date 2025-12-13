@@ -313,4 +313,116 @@ export const credentialsRouter = createTRPCRouter({
                 };
             }
         }),
+
+    // Slack Credentials
+    getSlackCredentials: protectedProcedure.query(async ({ ctx }) => {
+        const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+        if (!userId) throw new Error("Unauthorized");
+
+        const result = await db
+            .select()
+            .from(credentials)
+            .where(
+                and(
+                    eq(credentials.userId, userId),
+                    eq(credentials.type, "SLACK"),
+                    eq(credentials.isActive, true)
+                )
+            )
+            .limit(1);
+
+        if (result.length === 0) return null;
+        const creds = result[0];
+        return typeof creds.data === 'string' ? JSON.parse(creds.data) : creds.data;
+    }),
+
+    saveSlackCredentials: protectedProcedure
+        .input(z.object({ credentials: z.object({ botToken: z.string(), workspaceId: z.string().optional() }) }))
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+            if (!userId) throw new Error("Unauthorized");
+
+            const existing = await db
+                .select()
+                .from(credentials)
+                .where(
+                    and(
+                        eq(credentials.userId, userId),
+                        eq(credentials.type, "SLACK")
+                    )
+                );
+
+            if (existing.length > 0) {
+                await db
+                    .update(credentials)
+                    .set({ data: input.credentials, isActive: true, updatedAt: new Date() })
+                    .where(eq(credentials.id, existing[0].id));
+            } else {
+                await db.insert(credentials).values({
+                    userId,
+                    type: "SLACK",
+                    name: "Slack Bot Credentials",
+                    data: input.credentials,
+                    isActive: true,
+                });
+            }
+
+            return { success: true };
+        }),
+
+    // Discord Credentials
+    getDiscordCredentials: protectedProcedure.query(async ({ ctx }) => {
+        const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+        if (!userId) throw new Error("Unauthorized");
+
+        const result = await db
+            .select()
+            .from(credentials)
+            .where(
+                and(
+                    eq(credentials.userId, userId),
+                    eq(credentials.type, "DISCORD"),
+                    eq(credentials.isActive, true)
+                )
+            )
+            .limit(1);
+
+        if (result.length === 0) return null;
+        const creds = result[0];
+        return typeof creds.data === 'string' ? JSON.parse(creds.data) : creds.data;
+    }),
+
+    saveDiscordCredentials: protectedProcedure
+        .input(z.object({ credentials: z.object({ webhookUrl: z.string().url() }) }))
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+            if (!userId) throw new Error("Unauthorized");
+
+            const existing = await db
+                .select()
+                .from(credentials)
+                .where(
+                    and(
+                        eq(credentials.userId, userId),
+                        eq(credentials.type, "DISCORD")
+                    )
+                );
+
+            if (existing.length > 0) {
+                await db
+                    .update(credentials)
+                    .set({ data: input.credentials, isActive: true, updatedAt: new Date() })
+                    .where(eq(credentials.id, existing[0].id));
+            } else {
+                await db.insert(credentials).values({
+                    userId,
+                    type: "DISCORD",
+                    name: "Discord Webhook Credentials",
+                    data: input.credentials,
+                    isActive: true,
+                });
+            }
+
+            return { success: true };
+        }),
 });

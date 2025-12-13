@@ -17,11 +17,29 @@ import {
   FileCode,
   Split,
   Shuffle,
-  Brain
+  Brain,
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { SiGoogleforms } from 'react-icons/si';
 
 // Icon mapping - MUST match iconName in nodetypes.ts
+const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
+  'WEBHOOK': 'webhook',
+  'MANUAL': 'manual',
+  'SCHEDULE': 'schedule',
+  'GOOGLESHEET': 'googlesheet',
+  'HTTP': 'http',
+  'DATABASE': 'database',
+  'EMAIL': 'email',
+  'CODE': 'code',
+  'AI': 'ai',
+  'CONDITION': 'condition',
+  'FILTER': 'filter',
+  'SLACK': 'slack',
+  'DISCORD': 'discord',
+  'INITIAL': 'initial'
+};
 const iconMap: Record<string, any> = {
   'Webhook': Webhook,
   'Play': Play,
@@ -33,7 +51,9 @@ const iconMap: Record<string, any> = {
   'FileCode': FileCode,
   'Split': Split,
   'SiGoogleforms': SiGoogleforms,
-  'Shuffle': Shuffle
+  'Shuffle': Shuffle,
+  'MessageSquare': MessageSquare,
+  'MessageCircle': MessageCircle
 };
 
 export const WorkflowBuilder = ({ id }: { id: string }) => {

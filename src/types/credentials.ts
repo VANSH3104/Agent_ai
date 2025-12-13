@@ -10,6 +10,13 @@ export interface EmailSMTPCredentials {
     fromName?: string;
 }
 
+export interface AICredentials {
+    provider: 'openai' | 'anthropic' | 'google' | 'custom';
+    apiKey: string;
+    baseUrl?: string;
+    model?: string;
+}
+
 export interface DatabaseCredentials {
     connectionType: 'postgres' | 'mysql' | 'mongodb' | 'sqlite';
     connectionUrl?: string; // For env variable support
@@ -21,11 +28,21 @@ export interface DatabaseCredentials {
     ssl?: boolean;
 }
 
-export interface CredentialData {
-    EMAIL_SMTP?: EmailSMTPCredentials;
-    DATABASE?: DatabaseCredentials;
-    [key: string]: any;
+export interface SlackCredentials {
+    botToken: string;
+    workspaceId?: string;
 }
+
+export interface DiscordCredentials {
+    webhookUrl: string;
+}
+
+export type CredentialData =
+    | { type: 'EMAIL_SMTP'; data: EmailSMTPCredentials }
+    | { type: 'AI'; data: AICredentials }
+    | { type: 'DATABASE'; data: DatabaseCredentials }
+    | { type: 'SLACK'; data: SlackCredentials }
+    | { type: 'DISCORD'; data: DiscordCredentials };
 
 export interface SaveEmailCredentialsInput {
     host: string;

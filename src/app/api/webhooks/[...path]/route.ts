@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { node, workflow } from '@/db/schema';
+import { buildNodes, workflows } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
 
@@ -56,11 +56,11 @@ async function handleWebhookRequest(
         // Find the webhook node for this workflow and path
         const webhookNodes = await db
             .select()
-            .from(node)
+            .from(buildNodes)
             .where(
                 and(
-                    eq(node.workflowId, workflowId),
-                    eq(node.type, 'WEBHOOK')
+                    eq(buildNodes.workflowId, workflowId),
+                    eq(buildNodes.type, 'WEBHOOK')
                 )
             );
 

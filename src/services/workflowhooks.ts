@@ -89,6 +89,18 @@ export class WorkflowHooksService {
           result = await this.executeInitial(context, inputData);
           break;
 
+        case 'GOOGLESHEET':
+          result = await this.executeGoogleSheet(context, inputData);
+          break;
+
+        case 'SLACK':
+          result = await this.executeSlack(context, inputData);
+          break;
+
+        case 'DISCORD':
+          result = await this.executeDiscord(context, inputData);
+          break;
+
         default:
           throw new Error(`Unknown node type: ${context.nodeType}`);
       }
@@ -950,9 +962,182 @@ export class WorkflowHooksService {
 
       return { success: true };
     } catch (error: any) {
-      console.error('Failed to send log to Kafka:', error.message);
-      // Don't fail if logging fails
+      console.error('Kafka logging failed:', error.message);
+      // Don't throw - logging failure shouldn't stop execution
       return { success: true };
     }
+  }
+
+  // ============ GOOGLE SHEET EXECUTION ============
+  private async executeGoogleSheet(context: NodeContext, inputData: any): Promise<any> {
+    const { spreadsheetId, sheetName = 'Sheet1', operation = 'append' } = context.nodeData;
+
+    if (!spreadsheetId) {
+      throw new Error('Google Sheet node: Spreadsheet ID is required');
+    }
+
+    // For now, return a placeholder response
+    // TODO: Implement actual Google Sheets API integration
+    console.log(`📊 Google Sheet operation: ${operation}`);
+    console.log(`   Spreadsheet ID: ${spreadsheetId}`);
+    console.log(`   Sheet Name: ${sheetName}`);
+    console.log(`   Data:`, inputData);
+
+    return {
+      success: true,
+      operation,
+      spreadsheetId,
+      sheetName,
+      message: 'Google Sheet integration pending implementation',
+      data: inputData
+    };
+  }
+
+  // ============ SLACK EXECUTION ============
+  private async executeSlack(context: NodeContext, inputData: any): Promise<any> {
+    const userId = context.userId;
+    if (!userId) {
+      throw new Error('Slack node: User ID is required to fetch credentials');
+    }
+
+    // Fetch Slack credentials
+    const { db } = await import('@/db');
+    const { credentials } = await import('@/db/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const credentialResult = await db
+      .select()
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.userId, userId),
+          eq(credentials.type, 'SLACK'),
+          eq(credentials.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (credentialResult.length === 0) {
+      throw new Error('Slack node: No Slack credentials configured');
+    }
+
+    const slackCreds = credentialResult[0].data as any;
+    const { botToken } = slackCreds;
+
+    if (!botToken) {
+      throw new Error('Slack node: Bot token is required');
+    }
+
+    const message = inputData?.message || context.nodeData.message || JSON.stringify(inputData);
+    const channel = context.nodeData.channel || '#general';
+
+    console.log(`📨 Sending Slack message to ${channel}`);
+
+    // Send message to Slack
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel,
+        text: message,
+        username: context.nodeData.username || 'Workflow Bot',
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      throw new Error(`Slack API error: ${data.error}`);
+    }
+
+    return {
+      sent: true,
+      channel,
+      message,
+      timestamp: data.ts,
+      slackResponse: data
+    };
+  }
+
+  // ============ DISCORD EXECUTION ============  
+  private async executeDiscord(context: NodeContext, inputData: any): Promise<any> {
+    const userId = context.userId;
+    if (!userId) {
+      throw new Error('Discord node: User ID is required to fetch credentials');
+    }
+
+    // Fetch Discord credentials
+    const { db } = await import('@/db');
+    const { credentials } = await import('@/db/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const credentialResult = await db
+      .select()
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.userId, userId),
+          eq(credentials.type, 'DISCORD'),
+          eq(credentials.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (credentialResult.length === 0) {
+      throw new Error('Discord node: No Discord webhook configured');
+    }
+
+    const discordCreds = credentialResult[0].data as any;
+    const { webhookUrl } = discordCreds;
+
+    if (!webhookUrl) {
+      throw new Error('Discord node: Webhook URL is required');
+    }
+
+    const message = inputData?.message || context.nodeData.message || JSON.stringify(inputData);
+
+    console.log(`💬 Sending Discord message via webhook`);
+
+    // Prepare Discord message payload
+    const payload: any = {
+      content: message,
+      username: context.nodeData.username || 'Workflow Bot',
+    };
+
+    if (context.nodeData.avatarUrl) {
+      payload.avatar_url = context.nodeData.avatarUrl;
+    }
+
+    // Add embeds if configured
+    if (context.nodeData.embedTitle || context.nodeData.embedDescription) {
+      payload.embeds = [{
+        title: context.nodeData.embedTitle,
+        description: context.nodeData.embedDescription,
+        color: parseInt(context.nodeData.embedColor?.replace('#', '') || '5865F2', 16),
+      }];
+    }
+
+    // Send to Discord webhook
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Discord webhook error: ${response.status} - ${errorText}`);
+    }
+
+    return {
+      sent: true,
+      message,
+      timestamp: new Date().toISOString()
+    };
   }
 }

@@ -9,7 +9,9 @@ import {
   FileCode,
   Split,
   Shuffle,
-  Brain
+  Brain,
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { SiGoogleforms } from "react-icons/si";
 
@@ -174,38 +176,38 @@ export const NODE_CONFIGS: Record<string, NodeConfig> = {
     ],
   },
 
-  GOOGLEFORM: {
-    type: 'GOOGLEFORM',
-    displayName: 'Google Form',
-    description: 'Trigger workflow from Google Form submissions',
+  GOOGLESHEET: {
+    type: 'GOOGLESHEET',
+    displayName: 'Google Sheet',
+    description: 'Add or update data in Google Sheets',
     icon: SiGoogleforms,
     iconName: 'SiGoogleforms',
-    color: 'bg-purple-500',
-    category: 'Triggers',
+    color: 'bg-green-600',
+    category: 'Actions',
     inputs: [
       {
-        id: 'webhookData',
-        name: 'Webhook Data',
+        id: 'data',
+        name: 'Row Data',
         type: 'json',
-        required: false,
-        placeholder: 'Data from Google Forms webhook',
-        description: 'Raw data received from Google Forms webhook'
+        required: true,
+        placeholder: '{"name": "John", "email": "john@example.com"}',
+        description: 'Data to add as a new row'
       },
     ],
     parameters: [
       {
-        id: 'formId',
-        name: 'Google Form ID',
+        id: 'spreadsheetId',
+        name: 'Spreadsheet ID',
         type: 'string',
-        placeholder: '1FAIpQLS...',
-        description: 'Optional: For tracking form submissions',
+        required: true,
+        placeholder: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+        description: 'Google Sheet ID from URL'
       },
       {
-        id: 'formTitle',
-        name: 'Form Title',
+        id: 'sheetName',
+        name: 'Sheet Name',
         type: 'string',
-        placeholder: 'Customer Feedback Form',
-        description: 'Display name for the form'
+        required: false,
       },
       {
         id: 'webhookUrl',
@@ -843,6 +845,113 @@ export const NODE_CONFIGS: Record<string, NodeConfig> = {
         type: 'array',
         description: 'Items that did not match',
         sampleData: [{ age: 30 }],
+      },
+    ],
+  },
+
+  SLACK: {
+    type: 'SLACK',
+    displayName: 'Slack',
+    description: 'Send messages to Slack channels',
+    icon: MessageSquare,
+    iconName: 'MessageSquare',
+    color: 'bg-purple-500',
+    category: 'Actions',
+    inputs: [
+      {
+        id: 'data',
+        name: 'Message Data',
+        type: 'json',
+        required: false,
+        placeholder: '{"user": "John"}',
+        description: 'Data to use in message template'
+      },
+    ],
+    parameters: [
+      {
+        id: 'channel',
+        name: 'Channel',
+        type: 'string',
+        required: true,
+        placeholder: '#general',
+        description: 'Channel or user to send to'
+      },
+      {
+        id: 'message',
+        name: 'Message',
+        type: 'string',
+        required: true,
+        placeholder: 'Hello {{data.user}}!',
+        description: 'Message content (supports variables)'
+      },
+    ],
+    outputs: [
+      {
+        id: 'success',
+        name: 'Success',
+        type: 'boolean',
+        description: 'Whether message was sent',
+        sampleData: true
+      },
+      {
+        id: 'response',
+        name: 'Slack Response',
+        type: 'object',
+        description: 'Response from Slack API',
+        sampleData: { ok: true, ts: '1234567890.123' }
+      },
+    ],
+  },
+
+  DISCORD: {
+    type: 'DISCORD',
+    displayName: 'Discord',
+    description: 'Send messages to Discord channels',
+    icon: MessageCircle,
+    iconName: 'MessageCircle',
+    color: 'bg-indigo-500',
+    category: 'Actions',
+    inputs: [
+      {
+        id: 'data',
+        name: 'Message Data',
+        type: 'json',
+        required: false,
+        placeholder: '{"status": "complete"}',
+        description: 'Data to use in embed fields'
+      },
+    ],
+    parameters: [
+      {
+        id: 'content',
+        name: 'Content',
+        type: 'string',
+        required: false,
+        placeholder: 'Workflow notification',
+        description: 'Plain text message'
+      },
+      {
+        id: 'useEmbed',
+        name: 'Use Embed',
+        type: 'boolean',
+        defaultValue: true,
+        description: 'Send as rich embed'
+      },
+    ],
+    outputs: [
+      {
+        id: 'success',
+        name: 'Success',
+        type: 'boolean',
+        description: 'Whether message was sent',
+        sampleData: true
+      },
+      {
+        id: 'messageId',
+        name: 'Message ID',
+        type: 'string',
+        description: 'ID of sent message',
+        sampleData: '1234567890123456789'
       },
     ],
   },
