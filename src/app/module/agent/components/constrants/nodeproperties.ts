@@ -7,6 +7,8 @@ import { AIView } from "../../Nodecomponents/ai/ai-view";
 import { DatabaseView } from "../../Nodecomponents/database/database-view";
 import { FilterView } from "../../Nodecomponents/filter/filter-view";
 import { ConditionView } from "../../Nodecomponents/condition/condition-view";
+import { ScheduleView } from "../../Nodecomponents/schedule/schedule-view";
+import { WebhookView } from "../../Nodecomponents/webhook/webhook-view";
 
 
 
@@ -22,8 +24,8 @@ export const NodePropertiesConfig: Record<
 > = {
   webhook: {
     label: "Webhook",
-    Inputs: GoogleFormInputs,
-    Params: null,
+    Inputs: null,
+    Params: WebhookView,
     Outputs: null,
   },
 
@@ -40,7 +42,7 @@ export const NodePropertiesConfig: Record<
   ai: { label: "AI", Inputs: null, Params: AIView, Outputs: null },
   code: { label: "Code Execution", Inputs: null, Params: null, Outputs: null },
   database: { label: "Database", Inputs: null, Params: DatabaseView, Outputs: null },
-  schedule: { label: "Schedule", Inputs: null, Params: null, Outputs: null },
+  schedule: { label: "Schedule", Inputs: null, Params: ScheduleView, Outputs: null },
   filter: { label: "Filter", Inputs: null, Params: FilterView, Outputs: null },
   condition: { label: "Condition", Inputs: null, Params: ConditionView, Outputs: null },
 };
