@@ -145,6 +145,7 @@ export const AIView: React.FC<AIViewProps> = ({ initialData = {}, onSave }) => {
         { value: 'openai', label: 'OpenAI', models: ['gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-3.5-turbo', 'o1-preview', 'o1-mini'] },
         { value: 'anthropic', label: 'Anthropic (Claude)', models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307', 'claude-3-5-sonnet-20241022'] },
         { value: 'google', label: 'Google Gemini', models: ['gemini-pro', 'gemini-pro-vision', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-exp'] },
+        { value: 'openrouter', label: 'OpenRouter', models: ['openai/gpt-4', 'anthropic/claude-3-opus', 'google/gemini-pro', 'meta-llama/llama-3.1-70b-instruct', 'mistralai/mixtral-8x7b-instruct'] },
     ];
 
     const currentProvider = providers.find(p => p.value === aiCredentials.provider) || providers[0];
@@ -378,13 +379,13 @@ export const AIView: React.FC<AIViewProps> = ({ initialData = {}, onSave }) => {
                             <input
                                 type="number"
                                 min="1"
-                                max="4000"
+                                max="8192"
                                 value={aiConfig.maxTokens}
                                 onChange={(e) => updateAIConfig('maxTokens', parseInt(e.target.value))}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                             />
                             <p className="mt-1 text-xs text-gray-500">
-                                Maximum length of AI response
+                                Maximum response length. Limits: OpenAI/Anthropic/OpenRouter: 4096, Google: 8192
                             </p>
                         </div>
                     </div>

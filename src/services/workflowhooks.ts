@@ -1,5 +1,6 @@
 import { KafkaService } from "./kafkaservice";
 import nodemailer from "nodemailer";
+
 export interface HookContext {
   workflowId: string;
   executionId: string;
@@ -352,27 +353,50 @@ export class WorkflowHooksService {
     }
   }
 
+  // Helper function to validate and cap max_tokens based on provider limits
+  private getValidatedMaxTokens(provider: string, configuredMaxTokens: number): number {
+    const limits: Record<string, number> = {
+      'openai': 4096,
+      'anthropic': 4096,
+      'google': 8192,
+      'openrouter': 4096,
+    };
+
+    const limit = limits[provider] || 4096;
+
+    if (configuredMaxTokens > limit) {
+      console.warn(`max_tokens (${configuredMaxTokens}) exceeds ${provider} limit (${limit}). Capping to ${limit}.`);
+      return limit;
+    }
+
+    return configuredMaxTokens;
+  }
+
+  private stripMarkdownCodeFences(text: string): string {
+    // Remove markdown code fences (```json, ```javascript, ```, etc.)
+    return text
+      .replace(/^```(?:json|javascript|js|typescript|ts)?\s*\n?/gm, '')
+      .replace(/\n?```\s*$/gm, '')
+      .trim();
+  }
+  
+  
   private async executeAI(context: NodeContext, inputData: any): Promise<any> {
-    // Get prompts from nodeData or inputData
     const systemPrompt = context.nodeData.systemPrompt || '';
     const configuredPrompt = context.nodeData.userPrompt || '';
     const temperature = context.nodeData.temperature ?? 0.7;
-    const maxTokens = context.nodeData.maxTokens || 1000;
-
-    // Build the user prompt by combining configured prompt with input data
+    const configuredMaxTokens = context.nodeData.maxTokens || 1000;
+  
     let userPrompt = '';
-
-    // If there's a configured prompt, use it as the base
+  
     if (configuredPrompt && configuredPrompt.trim()) {
       userPrompt = configuredPrompt.trim();
-
-      // If there's also input data, append it
+  
       if (inputData && Object.keys(inputData).length > 0) {
         const inputDataStr = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
         userPrompt += '\n\n' + inputDataStr;
       }
     } else {
-      // No configured prompt, use input data only
       if (inputData?.prompt) {
         userPrompt = inputData.prompt;
       } else if (inputData?.message) {
@@ -381,25 +405,22 @@ export class WorkflowHooksService {
         userPrompt = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
       }
     }
-
-    // Validate that we have a user prompt
+  
     if (!userPrompt || userPrompt.trim() === '' || userPrompt === '{}') {
       throw new Error('AI node: No prompt provided. Either configure a default prompt or pass data from a previous node.');
     }
-
-    // Get userId from context
+  
     const userId = context.userId;
     if (!userId) {
       throw new Error('AI node: User ID is required to fetch credentials');
     }
-
-    console.log(`   🤖 Fetching AI credentials for user: ${userId}`);
-
-    // Fetch AI credentials from database
+  
+    console.log(`Fetching AI credentials for user: ${userId}`);
+  
     const { db } = await import('@/db');
     const { credentials } = await import('@/db/schema');
     const { eq, and } = await import('drizzle-orm');
-
+  
     const credentialResult = await db
       .select()
       .from(credentials)
@@ -411,56 +432,61 @@ export class WorkflowHooksService {
         )
       )
       .limit(1);
-
+  
     if (credentialResult.length === 0) {
       throw new Error(
         'AI node: No AI API credentials configured. Please configure AI credentials in the node settings.'
       );
     }
-
+  
     const aiCreds = credentialResult[0].data as any;
-
-    if (!aiCreds.provider || !aiCreds.apiKey || !aiCreds.model) {
+  
+    if (!aiCreds.provider || !aiCreds.apiKey) {
       throw new Error('AI node: AI credentials are incomplete');
     }
-
-    console.log(`   🤖 Using AI provider: ${aiCreds.provider}`);
-    console.log(`   🤖 Model: ${aiCreds.model}`);
-    console.log(`   🤖 Temperature: ${temperature}`);
-    console.log(`   🤖 System Prompt:`, systemPrompt || '(none)');
-    console.log(`   🤖 Configured Prompt:`, configuredPrompt || '(none)');
-    console.log(`   🤖 Input Data:`, inputData ? JSON.stringify(inputData).substring(0, 100) + '...' : '(none)');
-    console.log(`   🤖 Final User Prompt (first 200 chars):`, userPrompt.substring(0, 200) + '...');
-
+  
+    if (aiCreds.provider !== 'openrouter' && !aiCreds.model) {
+      throw new Error('AI node: Model is required for this provider');
+    }
+  
+    const maxTokens = this.getValidatedMaxTokens(aiCreds.provider, configuredMaxTokens);
+  
+    console.log(`Using AI provider: ${aiCreds.provider}`);
+    console.log(`Model: ${aiCreds.model || '(OpenRouter will use default)'}`);
+    console.log(`Temperature: ${temperature}`);
+    console.log(`Max Tokens: ${maxTokens}${maxTokens !== configuredMaxTokens ? ` (capped from ${configuredMaxTokens})` : ''}`);
+    console.log(`System Prompt:`, systemPrompt || '(none)');
+    console.log(`Configured Prompt:`, configuredPrompt || '(none)');
+    console.log(`Input Data:`, inputData ? JSON.stringify(inputData).substring(0, 100) + '...' : '(none)');
+    console.log(`Final User Prompt (first 200 chars):`, userPrompt.substring(0, 200) + '...');
+  
     try {
       let response: string;
-
+  
       if (aiCreds.provider === 'openai') {
-        // OpenAI implementation
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({
           apiKey: aiCreds.apiKey,
         });
-
+  
         const messages: any[] = [];
         if (systemPrompt) {
           messages.push({ role: 'system', content: systemPrompt });
         }
         messages.push({ role: 'user', content: userPrompt });
-
-        console.log(`   📤 Sending request to OpenAI...`);
+  
+        console.log(`Sending request to OpenAI...`);
         const completion = await openai.chat.completions.create({
-          model: aiCreds.model,
+          model: aiCreds.model || 'gpt-3.5-turbo',
           messages,
           temperature,
           max_tokens: maxTokens,
         });
-
+  
         response = completion.choices[0]?.message?.content || '';
-        console.log(`   ✔ OpenAI response received (${completion.usage?.total_tokens} tokens)`);
-
+        console.log(`OpenAI response received (${completion.usage?.total_tokens} tokens)`);
+  
       } else if (aiCreds.provider === 'anthropic') {
-        // Anthropic Claude implementation
         const response_fetch = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -469,7 +495,7 @@ export class WorkflowHooksService {
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: aiCreds.model,
+            model: aiCreds.model || 'claude-3-haiku-20240307',
             max_tokens: maxTokens,
             temperature,
             system: systemPrompt || undefined,
@@ -478,26 +504,30 @@ export class WorkflowHooksService {
             ],
           }),
         });
-
+  
         if (!response_fetch.ok) {
           const errorText = await response_fetch.text();
           throw new Error(`Anthropic API error: ${response_fetch.status} - ${errorText}`);
         }
-
+  
         const data = await response_fetch.json();
         response = data.content[0]?.text || '';
-        console.log(`   ✔ Anthropic response received`);
-
+        console.log(`Anthropic response received`);
+  
       } else if (aiCreds.provider === 'google') {
-        // Google Gemini implementation
-        const google_url = `https://generativelanguage.googleapis.com/v1beta/models/${aiCreds.model}:generateContent?key=${aiCreds.apiKey}`;
-
-        // userPrompt already contains configured prompt + input data combined
+        let google_url;
+        if (aiCreds.model?.includes('gemini-2.0') || aiCreds.model?.includes('gemini-2.5')) {
+          google_url = `https://generativelanguage.googleapis.com/v1beta/models/${aiCreds.model}:generateContent?key=${aiCreds.apiKey}`;
+        } else {
+          google_url = `https://generativelanguage.googleapis.com/v1/models/${aiCreds.model || 'gemini-pro'}:generateContent?key=${aiCreds.apiKey}`;
+        }
+  
         const prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
-
-        console.log(`   📤 Sending to Google Gemini...`);
-        console.log(`   📤 Prompt preview:`, prompt.substring(0, 200));
-
+  
+        console.log(`Sending to Google Gemini...`);
+        console.log(`Endpoint: ${google_url}`);
+        console.log(`Prompt preview:`, prompt.substring(0, 200));
+  
         const response_fetch = await fetch(google_url, {
           method: 'POST',
           headers: {
@@ -513,45 +543,212 @@ export class WorkflowHooksService {
             },
           }),
         });
-
+  
         if (!response_fetch.ok) {
           const errorText = await response_fetch.text();
-          console.error(`   ❌ Google Gemini error response:`, errorText);
-          throw new Error(`Google Gemini API error: ${response_fetch.status} - ${errorText}`);
+          console.error(`Google Gemini error response:`, errorText);
+  
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error?.message) {
+              throw new Error(`Google Gemini API error: ${response_fetch.status} - ${errorJson.error.message}`);
+            }
+          } catch {
+            throw new Error(`Google Gemini API error: ${response_fetch.status} - ${errorText.substring(0, 200)}`);
+          }
         }
-
+  
         const data = await response_fetch.json();
+  
+        if (!data.candidates || data.candidates.length === 0) {
+          if (data.promptFeedback?.blockReason) {
+            throw new Error(`Response blocked: ${data.promptFeedback.blockReason}`);
+          }
+          throw new Error('No response candidates returned from Gemini');
+        }
+  
         response = data.candidates[0]?.content?.parts[0]?.text || '';
-        console.log(`   ✔ Google Gemini response received`);
-
+        console.log(`Google Gemini response received`);
+  
+      } else if (aiCreds.provider === 'openrouter') {
+        console.log(`Sending request to OpenRouter...`);
+  
+        const siteUrl = context.siteUrl || 'https://app.n8n.io';
+        const siteName = context.siteName || 'n8n Workflow';
+  
+        const headers: Record<string, string> = {
+          'Authorization': `Bearer ${aiCreds.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': siteUrl,
+          'X-Title': siteName,
+        };
+  
+        if (aiCreds.openrouterProvider) {
+          headers['X-OpenRouter-Provider'] = aiCreds.openrouterProvider;
+        }
+  
+        const messages: any[] = [];
+        if (systemPrompt) {
+          messages.push({ role: 'system', content: systemPrompt });
+        }
+  
+        if (inputData?.multimedia && Array.isArray(inputData.multimedia)) {
+          const content: any[] = [
+            { type: 'text', text: userPrompt }
+          ];
+  
+          for (const media of inputData.multimedia) {
+            if (media.type === 'image' && media.url) {
+              content.push({
+                type: 'image_url',
+                image_url: { url: media.url }
+              });
+            } else if (media.type === 'audio' && media.data) {
+              content.push({
+                type: 'input_audio',
+                input_audio: {
+                  data: media.data,
+                  format: media.format || 'wav'
+                }
+              });
+            } else if (media.type === 'video' && media.url) {
+              content.push({
+                type: 'video_url',
+                video_url: { url: media.url }
+              });
+            }
+          }
+  
+          messages.push({
+            role: 'user',
+            content
+          });
+        } else {
+          messages.push({ role: 'user', content: userPrompt });
+        }
+  
+        const requestBody: any = {
+          model: aiCreds.model || 'google/gemini-2.0-flash',
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        };
+  
+        if (aiCreds.top_p !== undefined) {
+          requestBody.top_p = aiCreds.top_p;
+        }
+        if (aiCreds.top_k !== undefined) {
+          requestBody.top_k = aiCreds.top_k;
+        }
+        if (aiCreds.frequency_penalty !== undefined) {
+          requestBody.frequency_penalty = aiCreds.frequency_penalty;
+        }
+        if (aiCreds.presence_penalty !== undefined) {
+          requestBody.presence_penalty = aiCreds.presence_penalty;
+        }
+  
+        console.log(`Using model: ${requestBody.model}`);
+        console.log(`Headers:`, Object.keys(headers).join(', '));
+  
+        const response_fetch = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+        });
+  
+        if (!response_fetch.ok) {
+          const errorText = await response_fetch.text();
+          console.error(`OpenRouter error response:`, errorText);
+  
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.error?.message) {
+              throw new Error(`OpenRouter API error: ${response_fetch.status} - ${errorJson.error.message}`);
+            }
+          } catch {
+            throw new Error(`OpenRouter API error: ${response_fetch.status} - ${errorText.substring(0, 200)}`);
+          }
+        }
+  
+        const data = await response_fetch.json();
+  
+        if (data.usage) {
+          console.log(`OpenRouter usage - Prompt: ${data.usage.prompt_tokens}, Completion: ${data.usage.completion_tokens}, Total: ${data.usage.total_tokens}`);
+        }
+  
+        if (data.model) {
+          console.log(`Model used: ${data.model}`);
+        }
+  
+        response = data.choices[0]?.message?.content || '';
+        console.log(`OpenRouter response received`);
+  
       } else {
         throw new Error(`Unsupported AI provider: ${aiCreds.provider}`);
       }
-
-      console.log(`   ✔ AI processing complete!`);
-      console.log(`   ✔ Response length: ${response.length} characters`);
-      console.log(`   ✔ Response preview:`, response.substring(0, 150) + '...');
-
-      // Return only the AI response text for cleaner output
-      return response;
-
-    } catch (error: any) {
-      console.error(`   ❌ AI execution failed:`, error.message);
-
-      let errorMessage = `Failed to get AI response: ${error.message}`;
-
-      if (error.message.includes('401') || error.message.includes('authentication')) {
-        errorMessage += '\n\n🔐 Authentication failed. Please check your API key.';
-      } else if (error.message.includes('quota') || error.message.includes('limit')) {
-        errorMessage += '\n\n💳 API quota exceeded. Check your account limits.';
-      } else if (error.message.includes('model')) {
-        errorMessage += '\n\n🤖 Model error. Verify the model name is correct for your provider.';
+  
+      console.log(`AI processing complete!`);
+      console.log(`Response length: ${response.length} characters`);
+      console.log(`Response preview:`, response.substring(0, 150) + '...');
+  
+      // IMPROVED JSON PARSING WITH MARKDOWN STRIPPING
+      try {
+        const trimmedResponse = response.trim();
+        
+        // Strip markdown code fences before parsing
+        const cleanedResponse = this.stripMarkdownCodeFences(trimmedResponse);
+        
+        if ((cleanedResponse.startsWith('{') && cleanedResponse.endsWith('}')) ||
+          (cleanedResponse.startsWith('[') && cleanedResponse.endsWith(']'))) {
+          const parsed = JSON.parse(cleanedResponse);
+          console.log(`Response parsed as JSON`);
+          return parsed;
+        }
+      } catch (e) {
+        console.log(`Response is plain text (JSON parse failed: ${e})`);
       }
-
+  
+      return response;
+  
+    } catch (error: any) {
+      console.error(`AI execution failed:`, error.message);
+      console.error(`Stack trace:`, error.stack);
+  
+      let errorMessage = `Failed to get AI response: ${error.message}`;
+  
+      if (error.message.includes('401') || error.message.includes('authentication')) {
+        errorMessage += '\n\nAuthentication failed. Please check your API key.';
+      } else if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('limit') || error.message.includes('rate limit')) {
+        errorMessage += '\n\nAPI quota/rate limit exceeded. Check your account limits.';
+  
+        if (aiCreds.provider === 'google') {
+          errorMessage += '\n\nGoogle Gemini free tier: 20 requests/day per model';
+          errorMessage += '\nUpgrade at: https://makersuite.google.com/app/apikey';
+        } else if (aiCreds.provider === 'openrouter') {
+          errorMessage += '\n\nCheck OpenRouter usage: https://openrouter.ai/usage';
+        }
+      } else if (error.message.includes('model')) {
+        errorMessage += '\n\nModel error. Verify the model name is correct.';
+        if (aiCreds.provider === 'openrouter') {
+          errorMessage += '\nAvailable models: https://openrouter.ai/models';
+        }
+      } else if (error.message.includes('invalid api key') || error.message.includes('API key not valid')) {
+        errorMessage += '\n\nInvalid API key. Please check your credentials.';
+  
+        if (aiCreds.provider === 'openrouter') {
+          errorMessage += '\nGet OpenRouter key: https://openrouter.ai/keys';
+        } else if (aiCreds.provider === 'google') {
+          errorMessage += '\nGet Gemini key: https://makersuite.google.com/app/apikey';
+        } else if (aiCreds.provider === 'openai') {
+          errorMessage += '\nGet OpenAI key: https://platform.openai.com/api-keys';
+        } else if (aiCreds.provider === 'anthropic') {
+          errorMessage += '\nGet Anthropic key: https://console.anthropic.com/account/keys';
+        }
+      }
+  
       throw new Error(errorMessage);
     }
   }
-
   private async executeCode(context: NodeContext, inputData: any): Promise<any> {
     const { code, language = 'javascript' } = context.nodeData;
 
