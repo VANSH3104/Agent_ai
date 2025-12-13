@@ -13,6 +13,8 @@ import { useDeteleteAgent } from '@/app/module/Agents/server/hooks/agentHook';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
 import { Field } from 'pg-protocol/dist/messages';
+import { Switch } from '@/components/ui/switch';
+import { useToggleExecution } from '@/app/module/Agents/server/hooks/agentHook';
 
 interface AgentProp {
   id: string;
@@ -20,11 +22,24 @@ interface AgentProp {
   createdAt: string;
   updatedAt: string;
   userId?: string;
+  flowStatus?: string;
 }
 
 export const AgentCard = ({ agent }: { agent: AgentProp }) => {
   const router = useRouter();
   const deleteAgent = useDeteleteAgent();
+  const toggleExecution = useToggleExecution();
+
+  const handleToggle = (checked: boolean) => {
+    toggleExecution.mutate({
+      workflowId: agent.id,
+      isPolling: checked
+    });
+  };
+
+  const handleSwitchClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
   const handleCardClick = () => {
     router.push(`/agents/${agent.id}`);
   }
@@ -33,7 +48,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
     router.push(`/agents/${agent.id}/edit`);
   };
 
-  const handleDelete = useCallback(( agentId: string) => {
+  const handleDelete = useCallback((agentId: string) => {
     deleteAgent.mutate({ id: agentId }, {
       onSuccess: () => {
         toast.success(`Agent deleted successfully`);
@@ -43,7 +58,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
         toast.error(`Failed to delete agent: ${error.message}`);
       }
     });
-  }, [deleteAgent]);  
+  }, [deleteAgent]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -52,7 +67,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
       return dateString;
     }
   };
-  
+
   return (
     <div
       onClick={handleCardClick}
@@ -76,8 +91,15 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
         </div>
       </div>
 
-      {/* Right Side: Three Dots Menu */}
-      <div onClick={(e) => e.stopPropagation()}>
+      {/* Right Side: Actions */}
+      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div onClick={handleSwitchClick}>
+          <Switch
+            checked={agent.flowStatus === 'RUNNING'}
+            onCheckedChange={handleToggle}
+            disabled={toggleExecution.isPending}
+          />
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -94,7 +116,7 @@ export const AgentCard = ({ agent }: { agent: AgentProp }) => {
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={()=>handleDelete(agent.id)} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={() => handleDelete(agent.id)} className="text-destructive focus:text-destructive">
               <Trash2Icon className="mr-2 h-4 w-4" />
               Delete
             </DropdownMenuItem>

@@ -1,10 +1,10 @@
 // src/services/WorkflowExecutionService.ts (COMPLETELY FIXED - No Multiple Consumers)
 import { db } from '@/db';
-import { 
-  workflowExecutions, 
-  executionLogs, 
-  workflows, 
-  buildNodes, 
+import {
+  workflowExecutions,
+  executionLogs,
+  workflows,
+  buildNodes,
   nodeConnections,
   nodeExecutions
 } from '@/db/schema';
@@ -34,11 +34,11 @@ export class WorkflowExecutionService {
   private hooksService: WorkflowHooksService;
   private consumerInitialized: Set<string> = new Set();
   private initializationLocks: Map<string, Promise<void>> = new Map();
-  
+
   private constructor() {
     this.kafkaService = getKafkaService();
     this.hooksService = new WorkflowHooksService(this.kafkaService);
-    
+
     // Start consumer initialization on service creation
     this.initializeAllWorkflowConsumers();
   }
@@ -56,7 +56,8 @@ export class WorkflowExecutionService {
       // Get all unique workflow IDs
       const allWorkflows = await db
         .select({ id: workflows.id })
-        .from(workflows);
+        .from(workflows)
+        .where(eq(workflows.flowStatus, 'RUNNING'));
 
       console.log(`🔄 Initializing consumers for ${allWorkflows.length} workflows...`);
 
@@ -72,14 +73,46 @@ export class WorkflowExecutionService {
     }
   }
 
+  async startWorkflow(workflowId: string) {
+    console.log(`🚀 Starting workflow execution: ${workflowId}`);
+
+    // 1. Update status in DB
+    await db.update(workflows)
+      .set({ flowStatus: 'RUNNING' })
+      .where(eq(workflows.id, workflowId));
+
+    // 2. Initialize consumer
+    await this.initializeWorkflowConsumer(workflowId);
+    console.log(`✅ Workflow ${workflowId} started`);
+  }
+
+  async stopWorkflow(workflowId: string) {
+    console.log(`🛑 Stopping workflow execution: ${workflowId}`);
+
+    // 1. Update status in DB
+    await db.update(workflows)
+      .set({ flowStatus: 'DRAFT' })
+      .where(eq(workflows.id, workflowId));
+
+    // 2. Remove consumer
+    const triggerTopic = `workflow.${workflowId}.trigger`;
+    await this.kafkaService.removeConsumer(
+      `workflow-executor-${workflowId}`,
+      [triggerTopic]
+    );
+
+    this.consumerInitialized.delete(workflowId);
+    console.log(`✅ Workflow ${workflowId} stopped`);
+  }
+
   async triggerWorkflow(
-    workflowId: string, 
-    userId: string, 
-    triggerData: any = {}, 
+    workflowId: string,
+    userId: string,
+    triggerData: any = {},
     mode: 'production' | 'test' = 'test'
   ) {
     console.log(`\n🚀 Triggering workflow: ${workflowId}`);
-    
+
     const workflow = await db
       .select()
       .from(workflows)
@@ -145,12 +178,12 @@ export class WorkflowExecutionService {
     if (!this.consumerInitialized.has(workflowId)) {
       // Check if initialization is in progress
       let initPromise = this.initializationLocks.get(workflowId);
-      
+
       if (!initPromise) {
         // Start initialization
         initPromise = this.initializeWorkflowConsumer(workflowId);
         this.initializationLocks.set(workflowId, initPromise);
-        
+
         try {
           await initPromise;
         } finally {
@@ -182,7 +215,7 @@ export class WorkflowExecutionService {
         workflowExecutionId: execution.id,
         level: 'INFO',
         message: `🚀 Workflow execution started from node: ${startNode[0].name}`,
-        metadata: { 
+        metadata: {
           triggerData,
           startNodeId: startNode[0].id,
           startNodeType: startNode[0].types
@@ -201,29 +234,31 @@ export class WorkflowExecutionService {
     }
 
     const triggerTopic = `workflow.${workflowId}.trigger`;
-    
+
     try {
       console.log(`⚙️ Initializing consumer for workflow: ${workflowId}`);
-      
+
       await this.kafkaService.createConsumer(
         `workflow-executor-${workflowId}`,
         [triggerTopic],
         async (payload) => {
+          let message: any;
           try {
             console.log(`\n📨 Received message from topic: ${triggerTopic}`);
-            const message = JSON.parse(payload.message.value?.toString() || '{}');
+            message = JSON.parse(payload.message.value?.toString() || '{}');
             console.log(`📋 Execution ID: ${message.executionId}`);
-            
+
             await this.executeWorkflow(message);
           } catch (error: any) {
             console.error('❌ Workflow execution error:', error.message);
+
             if (message?.executionId) {
               await this.updateExecutionStatus(message.executionId, 'FAILED', error.message);
             }
           }
         }
       );
-      
+
       // Mark as initialized AFTER successful creation
       this.consumerInitialized.add(workflowId);
       console.log(`✅ Consumer initialized for workflow: ${workflowId}`);
@@ -275,7 +310,7 @@ export class WorkflowExecutionService {
       workflowExecutionId: executionId,
       level: 'INFO',
       message: `📊 Workflow graph loaded: ${nodes.length} nodes, ${connections.length} connections`,
-      metadata: { 
+      metadata: {
         totalNodes: nodes.length,
         totalConnections: connections.length,
         nodeNames: nodes.map(n => ({ id: n.id, name: n.name, type: n.types }))
@@ -283,7 +318,7 @@ export class WorkflowExecutionService {
     });
 
     const graph = this.buildGraph(nodes as WorkflowNode[], connections as NodeConnection[]);
-    
+
     await this.executeGraphTraversal(
       startNodeId,
       graph,
@@ -291,7 +326,8 @@ export class WorkflowExecutionService {
         workflowId,
         executionId,
         userId,
-        mode,
+        // Fix mode type
+        mode: mode as 'production' | 'test',
         triggerData
       }
     );
@@ -340,7 +376,7 @@ export class WorkflowExecutionService {
       workflowId: string;
       executionId: string;
       userId: string;
-      mode: string;
+      mode: 'production' | 'test';
       triggerData: any;
     }
   ) {
@@ -393,7 +429,7 @@ export class WorkflowExecutionService {
         nodeExecutionId: nodeExecution.id,
         level: 'INFO',
         message: `▶️ [${executionOrder}] Executing: ${node.name} (${node.types})`,
-        metadata: { 
+        metadata: {
           nodeId: node.id,
           nodeType: node.types,
           depth,
@@ -417,7 +453,7 @@ export class WorkflowExecutionService {
         // CRITICAL: Pass skipKafka flag to prevent hooks from sending to Kafka
         const result = await this.hooksService.executeNode(context, inputData, true);
         const executionTime = Date.now() - startTime;
-        
+
         if (!result.success) {
           await db.update(nodeExecutions)
             .set({
@@ -433,7 +469,7 @@ export class WorkflowExecutionService {
             nodeExecutionId: nodeExecution.id,
             level: 'ERROR',
             message: `❌ [${executionOrder}] Node ${node.name} FAILED: ${result.error}`,
-            metadata: { 
+            metadata: {
               error: result.error,
               executionTime: `${executionTime}ms`,
               inputData
@@ -465,7 +501,7 @@ export class WorkflowExecutionService {
           nodeExecutionId: nodeExecution.id,
           level: 'INFO',
           message: `✅ [${executionOrder}] ${node.name} completed successfully`,
-          metadata: { 
+          metadata: {
             executionTime: `${executionTime}ms`,
             inputData,
             outputData: result.data,
@@ -478,7 +514,7 @@ export class WorkflowExecutionService {
         });
 
         const nextNodeIds = adjacencyList.get(nodeId) || [];
-        
+
         if (nextNodeIds.length === 0) {
           console.log(`${indent}   🏁 End node reached`);
           await db.insert(executionLogs).values({
@@ -486,7 +522,7 @@ export class WorkflowExecutionService {
             nodeExecutionId: nodeExecution.id,
             level: 'INFO',
             message: `🏁 End node reached: ${node.name}`,
-            metadata: { 
+            metadata: {
               finalOutput: result.data,
               totalNodesExecuted: executedNodes.size
             }
@@ -494,13 +530,13 @@ export class WorkflowExecutionService {
         } else {
           const nextNodeNames = nextNodeIds.map(id => nodeMap.get(id)?.name).join(', ');
           console.log(`${indent}   ➡️  Next: ${nextNodeNames}`);
-          
+
           await db.insert(executionLogs).values({
             workflowExecutionId: executionId,
             nodeExecutionId: nodeExecution.id,
             level: 'INFO',
             message: `➡️ Passing output to ${nextNodeIds.length} connected node(s)`,
-            metadata: { 
+            metadata: {
               outputData: result.data,
               nextNodes: nextNodeIds.map(id => {
                 const nextNode = nodeMap.get(id);
@@ -522,7 +558,7 @@ export class WorkflowExecutionService {
 
       } catch (error: any) {
         const executionTime = Date.now() - startTime;
-        
+
         console.error(`${indent}   💥 Exception:`, error.message);
 
         await db.update(nodeExecutions)
@@ -539,7 +575,7 @@ export class WorkflowExecutionService {
           nodeExecutionId: nodeExecution.id,
           level: 'ERROR',
           message: `💥 [${executionOrder}] Exception in ${node.name}: ${error.message}`,
-          metadata: { 
+          metadata: {
             error: error.message,
             stack: error.stack,
             executionTime: `${executionTime}ms`,
@@ -556,7 +592,7 @@ export class WorkflowExecutionService {
       workflowExecutionId: executionId,
       level: 'INFO',
       message: `🎉 Workflow completed successfully`,
-      metadata: { 
+      metadata: {
         totalNodesExecuted: executedNodes.size,
         executionOrder: executionOrder - 1,
         finalOutputs: Array.from(nodeOutputs.entries()).map(([nodeId, output]) => ({
@@ -568,17 +604,18 @@ export class WorkflowExecutionService {
     });
 
     const finalOutput = Array.from(nodeOutputs.values()).pop();
-    await this.hooksService.completeWorkflow(executionContext, finalOutput);
+    // Correct mode type passed to context previously, but here just passing complete context
+    await this.hooksService.completeWorkflow({ ...executionContext, mode: executionContext.mode as 'production' | 'test' }, finalOutput);
   }
 
   private async updateExecutionStatus(
-    executionId: string, 
+    executionId: string,
     status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'PAUSED' | 'CANCELLED' | 'WAITING',
     error?: string
   ) {
     await db
       .update(workflowExecutions)
-      .set({ 
+      .set({
         status,
         error,
         finishedAt: status === 'SUCCESS' || status === 'FAILED' ? new Date() : undefined

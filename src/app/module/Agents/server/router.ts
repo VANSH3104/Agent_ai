@@ -6,7 +6,7 @@ import { z } from "zod";
 import { eq, and, desc, or } from "drizzle-orm";
 import { Node, Edge } from "@xyflow/react";
 import { getNodeTypeById } from "../../agent/components/constrants/nodetypes";
-import { WorkflowExecutionService } from "@/services/Workflowexecution";
+import { WorkflowExecutionService, getWorkflowExecutionService } from "@/services/Workflowexecution";
 
 const DB_TYPE_TO_NODE_TYPE: Record<string, string> = {
   'WEBHOOK': 'webhook',
@@ -44,8 +44,8 @@ export const Agentrouter = createTRPCRouter({
 
   remove: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(({ ctx, input }) => {
-      return db
+    .mutation(async ({ ctx, input }) => {
+      const deleted = await db
         .delete(workflows)
         .where(
           and(
@@ -53,7 +53,8 @@ export const Agentrouter = createTRPCRouter({
             eq(workflows.id, input.id),
           ),
         )
-        .execute();
+        .returning();
+      return deleted[0];
     }),
 
   updateName: protectedProcedure
@@ -111,7 +112,7 @@ export const Agentrouter = createTRPCRouter({
               type: nodeType, // Use lowercase node type for React Flow
               position: row.buildNode.position,
               data: {
-                ...row.buildNode.data,
+                ...(row.buildNode.data as Record<string, any>),
                 // Ensure we have the type in data as well
                 type: nodeType,
                 // Keep the original DB type for reference
@@ -189,6 +190,7 @@ export const Agentrouter = createTRPCRouter({
           target: z.string(),
           sourceHandle: z.string().optional().nullable(),
           targetHandle: z.string().optional().nullable(),
+          type: z.string().optional(),
         })
       )
     }))
@@ -329,7 +331,7 @@ export const Agentrouter = createTRPCRouter({
           type: nodeType, // React Flow type
           position: newNode.position,
           data: {
-            ...newNode.data,
+            ...(newNode.data as Record<string, any>),
             type: nodeType,
             schemaType: newNode.types
           },
@@ -344,7 +346,7 @@ export const Agentrouter = createTRPCRouter({
       mode: z.enum(['production', 'test']).default('test')
     }))
     .mutation(async ({ ctx, input }) => {
-      const executionService = new WorkflowExecutionService();
+      const executionService = getWorkflowExecutionService();
 
       const execution = await executionService.triggerWorkflow(
         input.workflowId,

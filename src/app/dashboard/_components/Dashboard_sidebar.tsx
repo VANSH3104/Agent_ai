@@ -26,7 +26,7 @@ const items = [
   },
   {
     title: "Credentials",
-    url: "dashboard/agents", 
+    url: "dashboard/credentials", 
     icon: Key
   },
   // {

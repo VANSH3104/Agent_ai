@@ -62,7 +62,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const [selectedNode, setSelectedNode] = useState<any>(null);
   const [draggedNode, setDraggedNode] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -177,7 +177,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <NavbarWork workflowName={data.workflow.name} status="Draft" id={id} />
+      <NavbarWork workflowName={data.workflow.name} status={data.workflow.flowStatus || 'Draft'} id={id} />
 
       <div className="flex flex-1 overflow-hidden relative">
         <button

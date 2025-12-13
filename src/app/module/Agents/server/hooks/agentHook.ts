@@ -203,10 +203,32 @@ export const useWatchNodeStatus = (nodeId: string, options?: {
   refetchInterval?: number | false;
 }) => {
   const trpc = useTRPC();
-  
+
   return useQuery({
     ...trpc.kafka.getLatestNodeExecutionStatus.queryOptions({ nodeId }),
     enabled: options?.enabled ?? !!nodeId,
     refetchInterval: options?.refetchInterval ?? false, // Optional polling
   });
+};
+
+export const useToggleExecution = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(trpc.kafka.toggleExecution.mutationOptions({
+    onSuccess: (data, variables) => {
+      console.log('Execution toggle response:', data);
+      toast.success(data.status === 'RUNNING' ? 'Workflow started' : 'Workflow stopped');
+      // Invalidate specific workflow query to refresh status
+      queryClient.invalidateQueries(trpc.agent.getOne.queryOptions({ id: variables.workflowId }));
+      // Invalidate agents list query for dashboard
+      queryClient.invalidateQueries(trpc.agent.getMany.queryOptions());
+      // Also invalidate executions if needed
+      queryClient.invalidateQueries(trpc.agent.getWorkflowExecutions.queryOptions({ workflowId: variables.workflowId }));
+    },
+    onError: (error) => {
+      console.error('Failed to toggle execution:', error);
+      toast.error(`Failed to update status: ${error.message}`);
+    }
+  }));
 };

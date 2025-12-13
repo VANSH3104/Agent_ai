@@ -117,6 +117,8 @@ export const workflows = pgTable("workflows", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  flowStatus: text("flow_status").default("DRAFT"), // 'DRAFT' | 'RUNNING'
+  error: text("error"),
 });
 
 export const buildNodes = pgTable('build_nodes', {

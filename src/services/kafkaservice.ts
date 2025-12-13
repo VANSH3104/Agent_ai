@@ -1,4 +1,4 @@
-// src/services/kafkaservice.ts (FIXED)
+
 import { Admin, Consumer, EachMessagePayload, Kafka, Producer, Partitioners } from "kafkajs";
 
 export class KafkaService {
@@ -19,7 +19,7 @@ export class KafkaService {
         maxRetryTime: 30000,
       },
     });
-    
+
     // FIXED: Use LegacyPartitioner to silence warning
     this.producer = this.kafka.producer({
       allowAutoTopicCreation: false,
@@ -29,7 +29,7 @@ export class KafkaService {
         retries: 5,
       },
     });
-    
+
     this.admin = this.kafka.admin();
   }
 
@@ -68,12 +68,12 @@ export class KafkaService {
     try {
       await this.producer.disconnect();
       await this.admin.disconnect();
-      
+
       for (const [topic, consumer] of this.consumers.entries()) {
         await consumer.disconnect();
         console.log(`Disconnected consumer for topic: ${topic}`);
       }
-      
+
       this.consumers.clear();
       this.isConnected = false;
       console.log('✅ Kafka service disconnected successfully');
@@ -93,14 +93,14 @@ export class KafkaService {
   // FIXED: Reduce default partitions (Kafka may have limited partitions configured)
   async createTopic(topicName: string, partitions: number = 3) {
     await this.ensureConnected();
-    
+
     try {
       const exists = await this.admin.listTopics();
       if (exists.includes(topicName)) {
         console.log(`✓ Topic already exists: ${topicName}`);
         return;
       }
-      
+
       await this.admin.createTopics({
         topics: [{
           topic: topicName,
@@ -108,7 +108,7 @@ export class KafkaService {
           replicationFactor: 1,
         }],
       });
-      
+
       console.log(`✓ Created topic: ${topicName} with ${partitions} partitions`);
     } catch (error: any) {
       console.error(`❌ Error creating topic ${topicName}: ${error.message}`);
@@ -118,7 +118,7 @@ export class KafkaService {
 
   async sendMessage(topicName: string, key: string, message: any) {
     await this.ensureConnected();
-    
+
     try {
       const result = await this.producer.send({
         topic: topicName,
@@ -130,18 +130,18 @@ export class KafkaService {
         ],
         compression: 1, // CompressionTypes.GZIP
       });
-      
+
       console.log(`✓ Message sent to topic ${topicName}:`, result);
       return result;
     } catch (error: any) {
       console.error(`❌ Error sending message to ${topicName}: ${error.message}`);
-      
+
       // Try to reconnect on failure
       if (error.message.includes('disconnected')) {
         this.isConnected = false;
         console.log('🔄 Attempting to reconnect...');
         await this.connect();
-        
+
         // Retry once
         return this.producer.send({
           topic: topicName,
@@ -149,7 +149,7 @@ export class KafkaService {
           compression: 1,
         });
       }
-      
+
       throw error;
     }
   }
@@ -178,7 +178,7 @@ export class KafkaService {
     try {
       await consumer.connect();
       console.log(`✓ Consumer connected: ${groupId}`);
-      
+
       await consumer.subscribe({ topics, fromBeginning: false });
       console.log(`✓ Consumer subscribed to topics: ${topics.join(', ')}`);
 
@@ -194,6 +194,24 @@ export class KafkaService {
     } catch (error: any) {
       console.error(`❌ Error creating consumer: ${error.message}`);
       throw error;
+    }
+  }
+
+  async removeConsumer(groupId: string, topics: string[]) {
+    const consumerKey = `${groupId}-${topics.join(',')}`;
+    const consumer = this.consumers.get(consumerKey);
+
+    if (consumer) {
+      try {
+        await consumer.disconnect();
+        this.consumers.delete(consumerKey);
+        console.log(`✅ Consumer removed: ${groupId}`);
+      } catch (error: any) {
+        console.error(`❌ Error removing consumer: ${error.message}`);
+        throw error;
+      }
+    } else {
+      console.warn(`⚠️ Consumer not found for removal: ${consumerKey}`);
     }
   }
 

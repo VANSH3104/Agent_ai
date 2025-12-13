@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { credentials } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 const emailCredentialsSchema = z.object({
     host: z.string().min(1, "SMTP host is required"),
@@ -32,6 +32,27 @@ const databaseCredentialsSchema = z.object({
 });
 
 export const credentialsRouter = createTRPCRouter({
+    // Get all user credentials
+    getAllCredentials: protectedProcedure.query(async ({ ctx }) => {
+        const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+        if (!userId) throw new Error("Unauthorized");
+
+        const result = await db
+            .select()
+            .from(credentials)
+            .where(eq(credentials.userId, userId))
+            .orderBy(desc(credentials.createdAt));
+
+        return result.map(cred => ({
+            id: cred.id,
+            name: cred.name,
+            type: cred.type,
+            description: cred.description,
+            data: typeof cred.data === 'string' ? JSON.parse(cred.data) : cred.data,
+            createdAt: cred.createdAt,
+            updatedAt: cred.updatedAt
+        }));
+    }),
     // Get user's email SMTP credentials
     getEmailCredentials: protectedProcedure.query(async ({ ctx }) => {
         const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
@@ -424,5 +445,39 @@ export const credentialsRouter = createTRPCRouter({
             }
 
             return { success: true };
+        }),
+
+    // Delete credential
+    deleteCredential: protectedProcedure
+        .input(z.object({ id: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const userId = ctx.user?.user?.id ?? ctx.user?.session?.userId;
+            if (!userId) throw new Error("Unauthorized");
+
+            // Verify the credential belongs to the user before deleting
+            const credential = await db
+                .select()
+                .from(credentials)
+                .where(
+                    and(
+                        eq(credentials.id, input.id),
+                        eq(credentials.userId, userId)
+                    )
+                )
+                .limit(1);
+
+            if (credential.length === 0) {
+                throw new Error("Credential not found or unauthorized");
+            }
+
+            // Delete the credential
+            await db
+                .delete(credentials)
+                .where(eq(credentials.id, input.id));
+
+            return {
+                success: true,
+                message: "Credential deleted successfully",
+            };
         }),
 });
