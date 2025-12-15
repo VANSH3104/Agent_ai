@@ -2,35 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { buildNodes, workflows } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getWorkflowExecutionService } from '@/services/Workflowexecution';
 
 
 // Dynamic webhook handler - accepts any path
 export async function GET(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: { params: Promise<{ path: string[] }> }
 ) {
-    return handleWebhookRequest(request, params, 'GET');
+    const resolvedParams = await params;
+    return handleWebhookRequest(request, resolvedParams, 'GET');
 }
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: { params: Promise<{ path: string[] }> }
 ) {
-    return handleWebhookRequest(request, params, 'POST');
+    const resolvedParams = await params;
+    return handleWebhookRequest(request, resolvedParams, 'POST');
 }
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: { params: Promise<{ path: string[] }> }
 ) {
-    return handleWebhookRequest(request, params, 'PUT');
+    const resolvedParams = await params;
+    return handleWebhookRequest(request, resolvedParams, 'PUT');
 }
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: { params: Promise<{ path: string[] }> }
 ) {
-    return handleWebhookRequest(request, params, 'DELETE');
+    const resolvedParams = await params;
+    return handleWebhookRequest(request, resolvedParams, 'DELETE');
 }
 
 async function handleWebhookRequest(
@@ -60,7 +65,7 @@ async function handleWebhookRequest(
             .where(
                 and(
                     eq(buildNodes.workflowId, workflowId),
-                    eq(buildNodes.type, 'WEBHOOK')
+                    eq(buildNodes.types, 'WEBHOOK')
                 )
             );
 
@@ -121,30 +126,81 @@ async function handleWebhookRequest(
             body,
             headers,
             query: queryParams,
-            method,
-            path: webhookPath,
-            timestamp: new Date().toISOString(),
+            metadata: {
+                method,
+                path: webhookPath,
+                timestamp: new Date().toISOString(),
+            }
         };
 
-        // TODO: Trigger workflow execution with webhookData
-        // This would integrate with your existing workflow execution system
-        // For now, we'll return a success response
+        // Trigger workflow execution with webhook data
+        try {
+            // Get workflow to retrieve userId
+            const workflow = await db
+                .select()
+                .from(workflows)
+                .where(eq(workflows.id, workflowId))
+                .limit(1);
 
-        console.log('Webhook triggered:', {
-            workflowId,
-            path: webhookPath,
-            method,
-            data: webhookData
-        });
+            if (!workflow.length) {
+                return NextResponse.json(
+                    { error: 'Workflow not found' },
+                    { status: 404 }
+                );
+            }
 
-        // Return response based on configuration
-        const response = await formatWebhookResponse(
-            webhookConfig.responseMode || 'custom',
-            webhookConfig.customResponse,
-            webhookData
-        );
+            // Check if workflow is running
+            if (workflow[0].flowStatus !== 'RUNNING') {
+                return NextResponse.json(
+                    {
+                        error: 'Workflow is not running',
+                        message: 'Please start the workflow before triggering webhooks'
+                    },
+                    { status: 400 }
+                );
+            }
 
-        return NextResponse.json(response, { status: 200 });
+            const userId = workflow[0].userId;
+
+            // Trigger workflow execution
+            const workflowService = getWorkflowExecutionService();
+            const execution = await workflowService.triggerWorkflow(
+                workflowId,
+                userId,
+                webhookData,
+                'production' // Webhooks run in production mode
+            );
+
+            console.log('Webhook triggered workflow execution:', {
+                workflowId,
+                executionId: execution.id,
+                path: webhookPath,
+                method
+            });
+
+            // Return response based on configuration
+            const response = await formatWebhookResponse(
+                webhookConfig.responseMode || 'custom',
+                webhookConfig.customResponse,
+                {
+                    success: true,
+                    executionId: execution.id,
+                    webhookData
+                }
+            );
+
+            return NextResponse.json(response, { status: 200 });
+
+        } catch (executionError: any) {
+            console.error('Workflow execution error:', executionError);
+            return NextResponse.json(
+                {
+                    error: 'Failed to execute workflow',
+                    message: executionError.message
+                },
+                { status: 500 }
+            );
+        }
 
     } catch (error: any) {
         console.error('Webhook error:', error);

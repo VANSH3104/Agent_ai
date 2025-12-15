@@ -36,9 +36,13 @@ export const WebhookView: React.FC<WebhookViewProps> = ({ initialData = {}, onSa
     const [errors, setErrors] = useState<{ path?: string }>({});
 
     // Generate webhook URL
-    const workflowId = nodeData?.workflowId || 'your-workflow-id';
+    // nodeData is the full node object from PropertiesPanel
+    // workflowId is stored in nodeData.data.workflowId
+    const workflowId = nodeData?.data?.workflowId || nodeData?.workflowId || 'WORKFLOW_ID_NOT_FOUND';
+    console.log("Full nodeData object:", nodeData);
+    console.log("Extracted workflowId:", workflowId);
     const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://your-domain.com'}/api/webhooks${config.path}?workflowId=${workflowId}`;
-
+    console.log("Generated webhook URL:", webhookUrl);
     useEffect(() => {
         setConfig({
             method: initialData.method || 'POST',

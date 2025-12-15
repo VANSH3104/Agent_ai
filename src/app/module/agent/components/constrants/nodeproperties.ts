@@ -1,6 +1,4 @@
-import { GoogleSheetOutputs } from "../../Nodecomponents/googlesheet/googlesheet-outputs";
 import { GoogleSheetConfig } from "../../Nodecomponents/googlesheet/googlesheet-config";
-import { GoogleSheetInputs } from "../../Nodecomponents/googlesheet/googlesheet-inputs";
 import { HttpView } from "../../Nodecomponents/http/httpview";
 import { EmailView } from "../../Nodecomponents/email/emailview";
 import { AIView } from "../../Nodecomponents/ai/ai-view";

@@ -11,6 +11,7 @@ import {
 import { eq, and, desc, or, inArray } from 'drizzle-orm';
 import { getKafkaService } from './kafkaservice';
 import { NodeContext, WorkflowHooksService } from './workflowhooks';
+import { getSchedulerService } from './SchedulerService';
 
 interface WorkflowNode {
   id: string;
@@ -76,6 +77,19 @@ export class WorkflowExecutionService {
   async startWorkflow(workflowId: string) {
     console.log(`🚀 Starting workflow execution: ${workflowId}`);
 
+    // Get workflow to retrieve userId for scheduler
+    const workflow = await db
+      .select()
+      .from(workflows)
+      .where(eq(workflows.id, workflowId))
+      .limit(1);
+
+    if (!workflow.length) {
+      throw new Error('Workflow not found');
+    }
+
+    const userId = workflow[0].userId;
+
     // 1. Update status in DB
     await db.update(workflows)
       .set({ flowStatus: 'RUNNING' })
@@ -83,6 +97,11 @@ export class WorkflowExecutionService {
 
     // 2. Initialize consumer
     await this.initializeWorkflowConsumer(workflowId);
+
+    // 3. Start scheduler if SCHEDULE node exists
+    const schedulerService = getSchedulerService();
+    await schedulerService.startScheduler(workflowId, userId);
+
     console.log(`✅ Workflow ${workflowId} started`);
   }
 
@@ -102,6 +121,11 @@ export class WorkflowExecutionService {
     );
 
     this.consumerInitialized.delete(workflowId);
+
+    // 3. Stop scheduler
+    const schedulerService = getSchedulerService();
+    schedulerService.stopScheduler(workflowId);
+
     console.log(`✅ Workflow ${workflowId} stopped`);
   }
 

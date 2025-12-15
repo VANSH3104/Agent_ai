@@ -1,4 +1,3 @@
-// components/AgentComponents/googleforms/google-form-inputs.tsx
 import React from 'react';
 
 interface GoogleFormInputsProps {
