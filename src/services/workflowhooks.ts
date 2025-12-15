@@ -822,19 +822,354 @@ export class WorkflowHooksService {
   }
 
   private async executeDatabaseQuery(context: NodeContext, inputData: any): Promise<any> {
-    const { query, operation = 'SELECT' } = context.nodeData;
+    const userId = context.userId;
+    if (!userId) {
+      throw new Error('Database node: User ID is required to fetch credentials');
+    }
 
-    // TODO: Implement actual database operations
-    console.log(`   💾 Database ${operation}:`, query);
+    console.log('🔴 DATABASE NODE - Received nodeData:', JSON.stringify(context.nodeData, null, 2));
 
-    // Simulate database response
-    return {
-      success: true,
-      operation,
-      query,
-      // In production, execute actual database query here
-      simulatedOnly: true
-    };
+    // Check if using new simplified config
+    const insertMode = context.nodeData.insertMode;
+    const tableName = context.nodeData.tableName;
+    const columnName = context.nodeData.columnName || 'data';
+
+    let query: string;
+    let params: any[] | undefined;
+
+    if (insertMode) {
+      // New simplified mode
+      console.log(`   💾 Insert Mode: ${insertMode}`);
+
+      if (!tableName) {
+        throw new Error('Database node: Table name is required');
+      }
+
+      let dataToInsert;
+
+      if (insertMode === 'fullJson') {
+        // Insert entire input as JSON string
+        dataToInsert = JSON.stringify(inputData);
+        console.log(`   📦 Inserting full JSON data`);
+      } else if (insertMode === 'specificField') {
+        // Extract specific field from input
+        const fieldToExtract = context.nodeData.fieldToExtract;
+        if (!fieldToExtract) {
+          throw new Error('Database node: Field to extract is required for specificField mode');
+        }
+
+        dataToInsert = inputData?.[fieldToExtract];
+        if (dataToInsert === undefined) {
+          throw new Error(`Database node: Field "${fieldToExtract}" not found in input data. Available fields: ${Object.keys(inputData || {}).join(', ')}`);
+        }
+
+        // If the extracted field is an object, stringify it
+        if (typeof dataToInsert === 'object' && dataToInsert !== null) {
+          dataToInsert = JSON.stringify(dataToInsert);
+        }
+
+        console.log(`   📝 Extracting field "${fieldToExtract}": ${String(dataToInsert).substring(0, 50)}...`);
+      }
+
+      // Generate INSERT query
+      query = `INSERT INTO ${tableName} (${columnName}) VALUES ($1) RETURNING *`;
+      params = [dataToInsert];
+
+      console.log(`   ✍️ Generated query: ${query}`);
+      console.log(`   ➤ Data preview: ${String(dataToInsert).substring(0, 100)}${String(dataToInsert).length > 100 ? '...' : ''}`);
+
+    } else {
+      // Legacy mode - backward compatibility
+      const querySource = context.nodeData.querySource || 'ui';
+      console.log(`   💾 Query Source Mode (Legacy): ${querySource}`);
+
+      switch (querySource) {
+        case 'ui':
+          query = context.nodeData.query;
+          if (!query) {
+            throw new Error('Database node (UI mode): Query must be configured in the node settings.');
+          }
+          console.log(`   📋 Using UI-configured query`);
+          break;
+
+        case 'input':
+          if (typeof inputData === 'string') {
+            query = inputData;
+          } else if (inputData?.query) {
+            query = inputData.query;
+          } else {
+            throw new Error('Database node (Input mode): No query found in input data.');
+          }
+          console.log(`   📥 Using query from input data`);
+          break;
+
+        case 'combined':
+          query = context.nodeData.query;
+          if (!query) {
+            throw new Error('Database node (Combined mode): Query template must be configured in UI.');
+          }
+
+          if (inputData?.params && Array.isArray(inputData.params)) {
+            params = inputData.params;
+          } else if (inputData?.parameters && Array.isArray(inputData.parameters)) {
+            params = inputData.parameters;
+          } else if (Array.isArray(inputData)) {
+            params = inputData;
+          }
+
+          console.log(`   🔗 Using UI query template with ${params?.length || 0} parameter(s)`);
+          break;
+
+        default:
+          throw new Error(`Database node: Unknown query source mode: ${querySource}`);
+      }
+    }
+
+    const operation = context.nodeData.operation || 'INSERT';
+
+    console.log(`   💾 Fetching database credentials for user: ${userId}`);
+
+    // Fetch Database credentials
+    const { db } = await import('@/db');
+    const { credentials } = await import('@/db/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const credentialResult = await db
+      .select()
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.userId, userId),
+          eq(credentials.type, 'DATABASE'),
+          eq(credentials.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (credentialResult.length === 0) {
+      throw new Error(
+        'Database node: No database credentials configured. Please configure database credentials in the node settings.'
+      );
+    }
+
+    const dbCreds = credentialResult[0].data as any;
+    const { connectionType, connectionUrl, host, port, database, username, password, ssl } = dbCreds;
+
+    if (!connectionType) {
+      throw new Error('Database node: Connection type is required');
+    }
+
+    console.log(`   💾 Executing ${operation} query on ${connectionType} database`);
+    console.log(`   ➤ Query: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`);
+
+    try {
+      let result: any;
+
+      switch (connectionType) {
+        case 'postgres': {
+          const { default: pg } = await import('pg');
+          const { Pool } = pg;
+
+          const poolConfig: any = connectionUrl
+            ? { connectionString: connectionUrl, ssl: ssl ? { rejectUnauthorized: false } : false }
+            : { host, port: port || 5432, database, user: username, password, ssl: ssl ? { rejectUnauthorized: false } : false };
+
+          const pool = new Pool(poolConfig);
+
+          try {
+            // Execute query with or without parameters
+            const queryResult = params && params.length > 0
+              ? await pool.query(query, params)
+              : await pool.query(query);
+
+            result = {
+              rows: queryResult.rows,
+              rowCount: queryResult.rowCount,
+              fields: queryResult.fields?.map((f: any) => f.name) || []
+            };
+            console.log(`   ✔ PostgreSQL query executed successfully (${queryResult.rowCount} rows)${params ? ` with ${params.length} parameter(s)` : ''}`);
+          } finally {
+            await pool.end();
+          }
+          break;
+        }
+
+        case 'mysql': {
+          const mysql = await import('mysql2/promise');
+
+          const connectionConfig: any = connectionUrl
+            ? connectionUrl
+            : { host, port: port || 3306, database, user: username, password, ssl: ssl ? {} : undefined };
+
+          const connection = await mysql.createConnection(connectionConfig);
+
+          try {
+            // Execute query with or without parameters
+            const [rows, fields] = params && params.length > 0
+              ? await connection.execute(query, params)
+              : await connection.execute(query);
+
+            result = {
+              rows: Array.isArray(rows) ? rows : [],
+              rowCount: Array.isArray(rows) ? rows.length : 0,
+              fields: Array.isArray(fields) ? fields.map((f: any) => f.name) : []
+            };
+            console.log(`   ✔ MySQL query executed successfully (${result.rowCount} rows)${params ? ` with ${params.length} parameter(s)` : ''}`);
+          } finally {
+            await connection.end();
+          }
+          break;
+        }
+
+        case 'mongodb': {
+          const { MongoClient } = await import('mongodb');
+
+          const mongoUrl = connectionUrl || `mongodb://${username}:${password}@${host}:${port || 27017}/${database}`;
+          const client = new MongoClient(mongoUrl);
+
+          try {
+            await client.connect();
+            console.log(`   🔗 Connected to MongoDB`);
+
+            const dbInstance = client.db(database);
+
+            // Parse MongoDB query (expecting JSON format)
+            let parsedQuery;
+            try {
+              parsedQuery = typeof query === 'string' ? JSON.parse(query) : query;
+            } catch (e) {
+              throw new Error('MongoDB query must be valid JSON. Example: {"collection": "users", "operation": "find", "filter": {"age": {"$gt": 18}}}');
+            }
+
+            const { collection: collectionName, operation: mongoOp = 'find', filter = {}, data, options = {} } = parsedQuery;
+
+            if (!collectionName) {
+              throw new Error('MongoDB query must specify a "collection" field');
+            }
+
+            const collection = dbInstance.collection(collectionName);
+
+            let mongoResult;
+            switch (mongoOp.toLowerCase()) {
+              case 'find':
+                mongoResult = await collection.find(filter, options).toArray();
+                result = { rows: mongoResult, rowCount: mongoResult.length };
+                break;
+              case 'findone':
+                mongoResult = await collection.findOne(filter, options);
+                result = { rows: mongoResult ? [mongoResult] : [], rowCount: mongoResult ? 1 : 0 };
+                break;
+              case 'insertone':
+                mongoResult = await collection.insertOne(data);
+                result = { insertedId: mongoResult.insertedId, acknowledged: mongoResult.acknowledged, rowCount: 1 };
+                break;
+              case 'insertmany':
+                mongoResult = await collection.insertMany(data);
+                result = { insertedIds: mongoResult.insertedIds, insertedCount: mongoResult.insertedCount, rowCount: mongoResult.insertedCount };
+                break;
+              case 'updateone':
+                mongoResult = await collection.updateOne(filter, data);
+                result = { matchedCount: mongoResult.matchedCount, modifiedCount: mongoResult.modifiedCount, rowCount: mongoResult.modifiedCount };
+                break;
+              case 'updatemany':
+                mongoResult = await collection.updateMany(filter, data);
+                result = { matchedCount: mongoResult.matchedCount, modifiedCount: mongoResult.modifiedCount, rowCount: mongoResult.modifiedCount };
+                break;
+              case 'deleteone':
+                mongoResult = await collection.deleteOne(filter);
+                result = { deletedCount: mongoResult.deletedCount, rowCount: mongoResult.deletedCount };
+                break;
+              case 'deletemany':
+                mongoResult = await collection.deleteMany(filter);
+                result = { deletedCount: mongoResult.deletedCount, rowCount: mongoResult.deletedCount };
+                break;
+              case 'aggregate':
+                mongoResult = await collection.aggregate(filter).toArray();
+                result = { rows: mongoResult, rowCount: mongoResult.length };
+                break;
+              default:
+                throw new Error(`Unsupported MongoDB operation: ${mongoOp}`);
+            }
+
+            console.log(`   ✔ MongoDB ${mongoOp} executed successfully`);
+          } finally {
+            await client.close();
+          }
+          break;
+        }
+
+        case 'sqlite': {
+          const sqlite3 = await import('sqlite3');
+          const { open } = await import('sqlite');
+
+          const dbPath = database || './database.sqlite';
+          const dbInstance = await open({
+            filename: dbPath,
+            driver: sqlite3.default.Database
+          });
+
+          try {
+            const isSelect = operation.toUpperCase().startsWith('SELECT') || query.trim().toUpperCase().startsWith('SELECT');
+
+            if (isSelect) {
+              const rows = await dbInstance.all(query);
+              result = {
+                rows,
+                rowCount: rows.length,
+                fields: rows.length > 0 ? Object.keys(rows[0]) : []
+              };
+              console.log(`   ✔ SQLite query executed successfully (${rows.length} rows)`);
+            } else {
+              const runResult = await dbInstance.run(query);
+              result = {
+                changes: runResult.changes,
+                lastID: runResult.lastID,
+                rowCount: runResult.changes || 0
+              };
+              console.log(`   ✔ SQLite query executed successfully (${runResult.changes} changes)`);
+            }
+          } finally {
+            await dbInstance.close();
+          }
+          break;
+        }
+
+        default:
+          throw new Error(`Unsupported database type: ${connectionType}`);
+      }
+
+      return {
+        success: true,
+        connectionType,
+        operation,
+        query: query.substring(0, 200) + (query.length > 200 ? '...' : ''),
+        ...result,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error: any) {
+      console.error(`   ❌ Database query failed:`, error.message);
+
+      let errorMessage = `Database query failed: ${error.message}`;
+
+      if (error.code === 'ECONNREFUSED') {
+        errorMessage += '\n\n🌐 Connection refused. Check:\n' +
+          '1. Database server is running\n' +
+          '2. Host and port are correct\n' +
+          '3. Firewall is not blocking the connection';
+      } else if (error.code === '28P01' || error.code === 'ER_ACCESS_DENIED_ERROR') {
+        errorMessage += '\n\n🔐 Authentication failed. Check:\n' +
+          '1. Username is correct\n' +
+          '2. Password is correct\n' +
+          '3. User has proper permissions';
+      } else if (error.code === '3D000' || error.code === 'ER_BAD_DB_ERROR') {
+        errorMessage += '\n\n📦 Database does not exist';
+      } else if (error.message.includes('syntax')) {
+        errorMessage += '\n\n📝 SQL syntax error in your query';
+      }
+
+      throw new Error(errorMessage);
+    }
   }
 
   private async executeWebhook(context: NodeContext, inputData: any): Promise<any> {
