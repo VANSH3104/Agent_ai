@@ -5,10 +5,19 @@ import { useTRPC } from '@/trpc/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 
 interface SimpleDatabaseConfig {
-    insertMode: 'fullJson' | 'specificField';
-    tableName: string;
-    columnName: string;
-    fieldToExtract?: string; // Only for specificField mode
+    operation: 'insert' | 'raw'; //insert uses the simple UI, raw allows custom SQL
+    multipleQueries?: boolean; // Enable multiple inserts
+    queries?: Array<{
+        tableName: string;
+        columnName: string;
+        insertMode?: 'fullJson' | 'specificField';
+        fieldToExtract?: string;
+    }>;
+    insertMode?: 'fullJson' | 'specificField';
+    tableName?: string;
+    columnName?: string;
+    fieldToExtract?: string;
+    rawSql?: string; // For raw SQL mode
 }
 
 interface DatabaseCredentials {
@@ -32,10 +41,14 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
     const trpc = useTRPC();
 
     const [config, setConfig] = useState<SimpleDatabaseConfig>({
+        operation: initialData.operation || 'insert',
         insertMode: initialData.insertMode || 'fullJson',
         tableName: initialData.tableName || '',
         columnName: initialData.columnName || 'data',
         fieldToExtract: initialData.fieldToExtract || '',
+        rawSql: initialData.rawSql || '',
+        multipleQueries: initialData.multipleQueries || false,
+        queries: initialData.queries || [],
     });
 
     const [dbCredentials, setDbCredentials] = useState<DatabaseCredentials>({
@@ -93,10 +106,14 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
     // Update config from initialData
     useEffect(() => {
         setConfig({
+            operation: initialData.operation || 'insert',
             insertMode: initialData.insertMode || 'fullJson',
             tableName: initialData.tableName || '',
             columnName: initialData.columnName || 'data',
             fieldToExtract: initialData.fieldToExtract || '',
+            rawSql: initialData.rawSql || '',
+            multipleQueries: initialData.multipleQueries || false,
+            queries: initialData.queries || [],
         });
     }, [initialData]);
 
@@ -170,7 +187,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
             value = sampleInput[config.fieldToExtract as keyof typeof sampleInput] || '<field_value>';
         }
 
-        return `INSERT INTO ${config.tableName} (${config.columnName}) VALUES ('${value}') RETURNING *`;
+        return `INSERT INTO ${config.tableName} ("${config.columnName}") VALUES ('${value}') RETURNING *`;
     };
 
     const connectionTypes = [
@@ -382,108 +399,336 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
                 <div className="space-y-4">
                     <h2 className="text-lg font-semibold text-gray-900">Insert Configuration</h2>
 
-                    {/* Insert Mode */}
+                    {/* Operation Mode Selector */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">Insert Mode *</label>
-                        <div className="space-y-2">
-                            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                                <input
-                                    type="radio"
-                                    name="insertMode"
-                                    value="fullJson"
-                                    checked={config.insertMode === 'fullJson'}
-                                    onChange={(e) => updateConfig('insertMode', e.target.value)}
-                                    className="w-4 h-4 text-blue-600"
-                                />
-                                <div className="ml-3">
-                                    <div className="text-sm font-medium text-gray-900">Insert Full JSON</div>
-                                    <div className="text-xs text-gray-500">
-                                        Inserts entire input as JSON string: <code className="bg-gray-100 px-1">{'{"test":"data","message":"from webhook"}'}</code>
-                                    </div>
-                                </div>
-                            </label>
-
-                            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                                <input
-                                    type="radio"
-                                    name="insertMode"
-                                    value="specificField"
-                                    checked={config.insertMode === 'specificField'}
-                                    onChange={(e) => updateConfig('insertMode', e.target.value)}
-                                    className="w-4 h-4 text-blue-600"
-                                />
-                                <div className="ml-3">
-                                    <div className="text-sm font-medium text-gray-900">Insert Specific Field</div>
-                                    <div className="text-xs text-gray- 500">
-                                        Extracts one field only: <code className="bg-gray-100 px-1">message</code> → <code className="bg-gray-100 px-1">"from webhook"</code>
-                                    </div>
-                                </div>
-                            </label>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">Operation Mode *</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => updateConfig('operation', 'insert')}
+                                className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${config.operation === 'insert'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                                    }`}
+                            >
+                                📝 Simple Insert
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => updateConfig('operation', 'raw')}
+                                className={`p-3 border-2 rounded-lg text-sm font-medium transition-colors ${config.operation === 'raw'
+                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 hover:border-gray-400 text-gray-700'
+                                    }`}
+                            >
+                                ⚡ Raw SQL
+                            </button>
                         </div>
                     </div>
 
-                    {/* Table Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Table Name *
-                        </label>
-                        <input
-                            type="text"
-                            value={config.tableName}
-                            onChange={(e) => updateConfig('tableName', e.target.value)}
-                            placeholder="data"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        />
-                    </div>
-
-                    {/* Column Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Column Name *
-                        </label>
-                        <input
-                            type="text"
-                            value={config.columnName}
-                            onChange={(e) => updateConfig('columnName', e.target.value)}
-                            placeholder="data"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                        />
-                    </div>
-
-                    {/* Field to Extract (only for specificField mode) */}
-                    {config.insertMode === 'specificField' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Field to Extract *
-                            </label>
-                            <input
-                                type="text"
-                                value={config.fieldToExtract}
-                                onChange={(e) => updateConfig('fieldToExtract', e.target.value)}
-                                placeholder="message"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                            />
-                            <p className="mt-1 text-xs text-gray-500">
-                                Field name from input object (e.g., "message", "test", "data")
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Query Preview */}
-                    {previewQuery && (
-                        <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase">Generated Query Preview</span>
-                                <span className="text-xs text-green-400">Auto-generated</span>
+                    {config.operation === 'insert' ? (
+                        /* Insert Mode UI */
+                        <>
+                            {/* Multiple Inserts Toggle */}
+                            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                                <input
+                                    type="checkbox"
+                                    id="multipleInserts"
+                                    checked={config.multipleQueries || false}
+                                    onChange={(e) => {
+                                        updateConfig('multipleQueries', e.target.checked);
+                                        if (e.target.checked && (!config.queries || config.queries.length === 0)) {
+                                            // Initialize with current single config
+                                            updateConfig('queries', [{
+                                                tableName: config.tableName || '',
+                                                columnName: config.columnName || 'data',
+                                                insertMode: config.insertMode || 'fullJson',
+                                                fieldToExtract: config.fieldToExtract || ''
+                                            }]);
+                                        }
+                                    }}
+                                    className="w-4 h-4 text-blue-600 rounded"
+                                />
+                                <label htmlFor="multipleInserts" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                    Insert multiple columns in one row
+                                </label>
                             </div>
-                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-words">
-                                {previewQuery}
-                            </pre>
-                            <div className="mt-3 pt-3 border-t border-gray-700">
-                                <p className="text-xs text-gray-400 mb-2">Sample Input:</p>
-                                <pre className="text-xs text-blue-300 font-mono">
-                                    {JSON.stringify(sampleInput, null, 2)}
-                                </pre>
+
+                            {config.multipleQueries ? (
+                                /* Multiple Inserts Mode */
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm text-gray-600">Add columns to insert in a single row</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newQueries = [...(config.queries || []), {
+                                                    tableName: '',
+                                                    columnName: 'data',
+                                                    insertMode: 'fullJson' as const,
+                                                    fieldToExtract: ''
+                                                }];
+                                                updateConfig('queries', newQueries);
+                                            }}
+                                            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                                        >
+                                            + Add Column
+                                        </button>
+                                    </div>
+
+                                    {(config.queries || []).map((query, index) => (
+                                        <div key={index} className="border rounded-lg p-3 bg-white space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="font-medium text-sm">Column #{index + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newQueries = (config.queries || []).filter((_, i) => i !== index);
+                                                        updateConfig('queries', newQueries);
+                                                    }}
+                                                    className="text-red-600 hover:text-red-700 text-sm"
+                                                >
+                                                    ✕ Remove
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Table Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={query.tableName}
+                                                        onChange={(e) => {
+                                                            const newQueries = [...(config.queries || [])];
+                                                            newQueries[index].tableName = e.target.value;
+                                                            updateConfig('queries', newQueries);
+                                                        }}
+                                                        placeholder="data"
+                                                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Column Name *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={query.columnName}
+                                                        onChange={(e) => {
+                                                            const newQueries = [...(config.queries || [])];
+                                                            newQueries[index].columnName = e.target.value;
+                                                            updateConfig('queries', newQueries);
+                                                        }}
+                                                        placeholder="data"
+                                                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">Insert Mode *</label>
+                                                <select
+                                                    value={query.insertMode || 'fullJson'}
+                                                    onChange={(e) => {
+                                                        const newQueries = [...(config.queries || [])];
+                                                        newQueries[index].insertMode = e.target.value as 'fullJson' | 'specificField';
+                                                        updateConfig('queries', newQueries);
+                                                    }}
+                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                >
+                                                    <option value="fullJson">Full JSON</option>
+                                                    <option value="specificField">Specific Field</option>
+                                                </select>
+                                            </div>
+
+                                            {query.insertMode === 'specificField' && (
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Field to Extract *</label>
+                                                    <input
+                                                        type="text"
+                                                        value={query.fieldToExtract || ''}
+                                                        onChange={(e) => {
+                                                            const newQueries = [...(config.queries || [])];
+                                                            newQueries[index].fieldToExtract = e.target.value;
+                                                            updateConfig('queries', newQueries);
+                                                        }}
+                                                        placeholder="message"
+                                                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {/* Combined Multi-Column Query Preview */}
+                                    {config.queries && config.queries.length > 0 && config.queries[0]?.tableName && (
+                                        <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-semibold text-gray-400 uppercase">Combined Query Preview</span>
+                                                <span className="text-xs text-green-400">Auto-generated</span>
+                                            </div>
+                                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-words">
+                                                {(() => {
+                                                    const tableName = config.queries[0].tableName;
+                                                    const columns = config.queries
+                                                        .map(q => `"${q.columnName || 'data'}"`)
+                                                        .join(', ');
+                                                    const values = config.queries
+                                                        .map(q => {
+                                                            const val = q.insertMode === 'fullJson'
+                                                                ? JSON.stringify(sampleInput)
+                                                                : sampleInput[q.fieldToExtract as keyof typeof sampleInput] || '<field_value>';
+                                                            return `'${val}'`;
+                                                        })
+                                                        .join(', ');
+                                                    return `INSERT INTO ${tableName} (${columns}) VALUES (${values}) RETURNING *`;
+                                                })()}
+                                            </pre>
+                                            <div className="mt-3 pt-3 border-t border-gray-700">
+                                                <p className="text-xs text-gray-400 mb-2">Sample Input:</p>
+                                                <pre className="text-xs text-blue-300 font-mono">
+                                                    {JSON.stringify(sampleInput, null, 2)}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                /* Single Insert Mode */
+                                <>
+
+                                    {/* Insert Mode */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-3">Insert Mode *</label>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                                <input
+                                                    type="radio"
+                                                    name="insertMode"
+                                                    value="fullJson"
+                                                    checked={config.insertMode === 'fullJson'}
+                                                    onChange={(e) => updateConfig('insertMode', e.target.value)}
+                                                    className="w-4 h-4 text-blue-600"
+                                                />
+                                                <div className="ml-3">
+                                                    <div className="text-sm font-medium text-gray-900">Insert Full JSON</div>
+                                                    <div className="text-xs text-gray-500">
+                                                        Inserts entire input as JSON string: <code className="bg-gray-100 px-1">{'{"test":"data","message":"from webhook"}'}</code>
+                                                    </div>
+                                                </div>
+                                            </label>
+
+                                            <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                                <input
+                                                    type="radio"
+                                                    name="insertMode"
+                                                    value="specificField"
+                                                    checked={config.insertMode === 'specificField'}
+                                                    onChange={(e) => updateConfig('insertMode', e.target.value)}
+                                                    className="w-4 h-4 text-blue-600"
+                                                />
+                                                <div className="ml-3">
+                                                    <div className="text-sm font-medium text-gray-900">Insert Specific Field</div>
+                                                    <div className="text-xs text-gray- 500">
+                                                        Extracts one field only: <code className="bg-gray-100 px-1">message</code> → <code className="bg-gray-100 px-1">"from webhook"</code>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Table Name */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Table Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={config.tableName}
+                                            onChange={(e) => updateConfig('tableName', e.target.value)}
+                                            placeholder="data"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                        />
+                                    </div>
+
+                                    {/* Column Name */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Column Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={config.columnName}
+                                            onChange={(e) => updateConfig('columnName', e.target.value)}
+                                            placeholder="data"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                        />
+                                    </div>
+
+                                    {/* Field to Extract (only for specificField mode) */}
+                                    {config.insertMode === 'specificField' && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Field to Extract *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={config.fieldToExtract}
+                                                onChange={(e) => updateConfig('fieldToExtract', e.target.value)}
+                                                placeholder="message"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500">
+                                                Field name from input object (e.g., "message", "test", "data")
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {/* Query Preview */}
+                                    {previewQuery && (
+                                        <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-semibold text-gray-400 uppercase">Generated Query Preview</span>
+                                                <span className="text-xs text-green-400">Auto-generated</span>
+                                            </div>
+                                            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap break-words">
+                                                {previewQuery}
+                                            </pre>
+                                            <div className="mt-3 pt-3 border-t border-gray-700">
+                                                <p className="text-xs text-gray-400 mb-2">Sample Input:</p>
+                                                <pre className="text-xs text-blue-300 font-mono">
+                                                    {JSON.stringify(sampleInput, null, 2)}
+                                                </pre>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    ) : (
+                        /* Raw SQL Mode UI */
+                        <div className="space-y-4">
+                            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                <p className="text-sm text-yellow-800">
+                                    ⚡ <strong>Raw SQL Mode:</strong> Write any custom SQL. Separate multiple queries with semicolons (;)
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    SQL Query *
+                                </label>
+                                <textarea
+                                    value={config.rawSql}
+                                    onChange={(e) => updateConfig('rawSql', e.target.value)}
+                                    placeholder={`INSERT INTO table1 (data) VALUES ('{{input}}');
+INSERT INTO table2 (message) VALUES ('{{input.message}}');
+-- Use {{input}} for full JSON or {{input.fieldName}} for specific fields`}
+                                    rows={10}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y font-mono"
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                    💡 Use <code className="bg-gray-100 px-1">{`{{input}}`}</code> for full JSON or <code className="bg-gray-100 px-1">{`{{input.fieldName}}`}</code> for specific fields
+                                </p>
                             </div>
                         </div>
                     )}

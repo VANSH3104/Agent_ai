@@ -828,17 +828,104 @@ export class WorkflowHooksService {
     }
 
     console.log('🔴 DATABASE NODE - Received nodeData:', JSON.stringify(context.nodeData, null, 2));
-
-    // Check if using new simplified config
-    const insertMode = context.nodeData.insertMode;
-    const tableName = context.nodeData.tableName;
-    const columnName = context.nodeData.columnName || 'data';
+    console.log('🔍 Condition checks:');
+    console.log(`   - operation: ${context.nodeData.operation}`);
+    console.log(`   - rawSql: ${context.nodeData.rawSql ? 'present' : 'missing'}`);
+    console.log(`   - multipleQueries: ${context.nodeData.multipleQueries}`);
+    console.log(`   - queries length: ${context.nodeData.queries?.length || 0}`);
+    console.log(`   - insertMode: ${context.nodeData.insertMode}`);
+    console.log(`   - tableName: ${context.nodeData.tableName}`);
 
     let query: string;
     let params: any[] | undefined;
 
-    if (insertMode) {
-      // New simplified mode
+    // Check for raw SQL mode first
+    if (context.nodeData.operation === 'raw' && context.nodeData.rawSql) {
+      console.log('✅ Matched: Raw SQL Mode');
+      query = context.nodeData.rawSql;
+
+      // Replace template variables with actual input data
+      // Support {{input}} for full JSON and {{input.field}} for specific fields
+      query = query.replace(/\\{\\{input\\}\\}/g, () => {
+        return JSON.stringify(inputData).replace(/'/g, "''"); // Escape single quotes
+      });
+
+      query = query.replace(/\\{\\{input\\.(\\w+)\\}\\}/g, (match, fieldName) => {
+        const value = inputData?.[fieldName];
+        if (value === undefined) {
+          console.warn(`   ⚠️ Field "${fieldName}" not found in input data`);
+          return 'NULL';
+        }
+        if (typeof value === 'object') {
+          return JSON.stringify(value).replace(/'/g, "''");
+        }
+        return String(value).replace(/'/g, "''"); // Escape single quotes
+      });
+
+      console.log(`   ⚡ Raw SQL Mode - executing custom query`);
+      console.log(`   ➤ Query: ${query.substring(0, 200)}${query.length > 200 ? '...' : ''}`);
+    }
+    // Check if using multiple inserts mode
+    else if (context.nodeData.multipleQueries && context.nodeData.queries && context.nodeData.queries.length > 0) {
+      console.log('✅ Matched: Multiple Columns Mode');
+      console.log(`   📊 Multiple Columns Mode - ${context.nodeData.queries.length} columns`);
+
+      // Get the table name from the first query (all should use same table)
+      const tableName = context.nodeData.queries[0]?.tableName;
+      if (!tableName) {
+        throw new Error('Database node: Table name is required');
+      }
+
+      // Collect all columns and values
+      const columns: string[] = [];
+      const values: any[] = [];
+      const placeholders: string[] = [];
+
+      context.nodeData.queries.forEach((queryConfig: any, index: number) => {
+        const { columnName = 'data', insertMode = 'fullJson', fieldToExtract } = queryConfig;
+
+        // Verify all queries use the same table
+        if (queryConfig.tableName !== tableName) {
+          console.warn(`   ⚠️ Query #${index + 1} uses different table (${queryConfig.tableName}), expected ${tableName}. Using ${tableName}.`);
+        }
+
+        let dataToInsert;
+        if (insertMode === 'fullJson') {
+          dataToInsert = JSON.stringify(inputData);
+        } else if (insertMode === 'specificField') {
+          if (!fieldToExtract) {
+            throw new Error(`Database node: Field to extract is required for column #${index + 1}`);
+          }
+          dataToInsert = inputData?.[fieldToExtract];
+          if (dataToInsert === undefined) {
+            throw new Error(`Database node: Field "${fieldToExtract}" not found in input data for column #${index + 1}`);
+          }
+          if (typeof dataToInsert === 'object' && dataToInsert !== null) {
+            dataToInsert = JSON.stringify(dataToInsert);
+          }
+        }
+
+        columns.push(`"${columnName}"`);
+        values.push(dataToInsert);
+        placeholders.push(`$${index + 1}`);
+
+        console.log(`   ➤ Column #${index + 1}: "${columnName}" = ${String(dataToInsert).substring(0, 50)}...`);
+      });
+
+      // Generate single INSERT query with multiple columns
+      query = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
+      params = values;
+
+      console.log(`   ✍️ Generated multi-column INSERT with ${columns.length} columns`);
+      console.log(`   ➤ Query: ${query}`);
+    }
+    // Check if using new simplified insert config
+    else if (context.nodeData.operation === 'insert' || context.nodeData.insertMode) {
+      console.log('✅ Matched: Simplified Insert Mode');
+      const insertMode = context.nodeData.insertMode || 'fullJson';
+      const tableName = context.nodeData.tableName;
+      const columnName = context.nodeData.columnName || 'data';
+
       console.log(`   💾 Insert Mode: ${insertMode}`);
 
       if (!tableName) {
@@ -872,14 +959,33 @@ export class WorkflowHooksService {
       }
 
       // Generate INSERT query
-      query = `INSERT INTO ${tableName} (${columnName}) VALUES ($1) RETURNING *`;
+      query = `INSERT INTO ${tableName} ("${columnName}") VALUES ($1) RETURNING *`;
       params = [dataToInsert];
 
       console.log(`   ✍️ Generated query: ${query}`);
       console.log(`   ➤ Data preview: ${String(dataToInsert).substring(0, 100)}${String(dataToInsert).length > 100 ? '...' : ''}`);
-
     } else {
       // Legacy mode - backward compatibility
+      console.log('⚠️ Matched: Legacy Mode (backward compatibility)');
+
+      // Check if this looks like it should be using the new mode but isn't configured properly
+      if (context.nodeData.queries && Array.isArray(context.nodeData.queries)) {
+        console.error('🔥 ERROR: Node has queries array but multipleQueries is not true!');
+        console.error('   This looks like a multi-column insert configuration issue.');
+        console.error('   queries array:', context.nodeData.queries);
+        console.error('   multipleQueries:', context.nodeData.multipleQueries);
+        throw new Error('Database node: Configuration error - queries array found but multipleQueries not enabled. Please re-save your database node configuration.');
+      }
+
+      if (context.nodeData.tableName && !context.nodeData.query) {
+        console.error('🔥 ERROR: Node has tableName but no operation mode set!');
+        console.error('   This looks like a simplified insert configuration issue.');
+        console.error('   tableName:', context.nodeData.tableName);
+        console.error('   operation:', context.nodeData.operation);
+        console.error('   insertMode:', context.nodeData.insertMode);
+        throw new Error('Database node: Configuration error - tableName found but no operation/insertMode set. Please ensure operation="insert" is saved in your configuration.');
+      }
+
       const querySource = context.nodeData.querySource || 'ui';
       console.log(`   💾 Query Source Mode (Legacy): ${querySource}`);
 
@@ -977,7 +1083,7 @@ export class WorkflowHooksService {
           const pool = new Pool(poolConfig);
 
           try {
-            // Execute query with or without parameters
+            // Execute single query with or without parameters
             const queryResult = params && params.length > 0
               ? await pool.query(query, params)
               : await pool.query(query);
