@@ -789,138 +789,198 @@ export class WorkflowHooksService {
   }
 
   private async executeCondition(context: NodeContext, inputData: any): Promise<any> {
-      const { condition, conditions, combineOperation, trueOutputSource, falseOutputSource } = context.nodeData;
-  
-      console.log('🔀 Condition Node Execution');
-      console.log('   Input Data:', JSON.stringify(inputData, null, 2).substring(0, 200));
-      console.log('   True Output Source:', trueOutputSource || '(none)');
-      console.log('   False Output Source:', falseOutputSource || '(none)');
-  
-      try {
-          // Check if we're in Array Splitter Mode (both output sources configured)
-          const isSplitterMode = !!(trueOutputSource && falseOutputSource);
-  
-          if (isSplitterMode) {
-              console.log('   ✂️ Array Splitter Mode ACTIVE');
-              
-              // Extract arrays from specified paths
-              const trueData = this.getNestedValue(inputData, trueOutputSource);
-              const falseData = this.getNestedValue(inputData, falseOutputSource);
-  
-              console.log('   True Data:', Array.isArray(trueData) ? `Array(${trueData.length})` : typeof trueData);
-              console.log('   False Data:', Array.isArray(falseData) ? `Array(${falseData.length})` : typeof falseData);
-  
-              // In splitter mode, send both outputs simultaneously
-              return {
-                  conditionMet: true, // Not used in splitter mode
-                  isSplitterMode: true,
-                  
-                  // Main outputs
-                  true: trueData,
-                  false: falseData,
-                  
-                  // Aliases for compatibility
-                  passed: trueData,
-                  failed: falseData,
-                  
-                  // Metadata
-                  trueCount: Array.isArray(trueData) ? trueData.length : (trueData ? 1 : 0),
-                  falseCount: Array.isArray(falseData) ? falseData.length : (falseData ? 1 : 0),
-                  mode: 'splitter'
-              };
-          }
-  
-          // Boolean Branching Mode - Evaluate conditions
-          console.log('   🔀 Boolean Branching Mode');
-          let isTrue = false;
-  
-          // Modern Condition Builder (array of conditions)
-          if (Array.isArray(conditions) && conditions.length > 0) {
-              console.log(`   Evaluating ${conditions.length} condition(s) with ${combineOperation} logic`);
-              
-              const results = conditions.map((cond: any, idx: number) => {
-                  const { field, operator, value } = cond;
-                  const itemValue = this.getNestedValue(inputData, field);
-                  
-                  let result = false;
-                  switch (operator) {
-                      case 'equals': 
-                          result = String(itemValue) === value;
-                          break;
-                      case 'notEquals': 
-                          result = String(itemValue) !== value;
-                          break;
-                      case 'greaterThan': 
-                          result = Number(itemValue) > Number(value);
-                          break;
-                      case 'lessThan': 
-                          result = Number(itemValue) < Number(value);
-                          break;
-                      case 'greaterOrEqual': 
-                          result = Number(itemValue) >= Number(value);
-                          break;
-                      case 'lessOrEqual': 
-                          result = Number(itemValue) <= Number(value);
-                          break;
-                      case 'contains': 
-                          result = String(itemValue).toLowerCase().includes(value.toLowerCase());
-                          break;
-                      case 'startsWith': 
-                          result = String(itemValue).toLowerCase().startsWith(value.toLowerCase());
-                          break;
-                      case 'endsWith': 
-                          result = String(itemValue).toLowerCase().endsWith(value.toLowerCase());
-                          break;
-                      default: 
-                          result = false;
-                  }
-                  
-                  console.log(`   Condition ${idx + 1}: ${field} ${operator} "${value}" → ${itemValue} → ${result}`);
-                  return result;
-              });
-  
-              isTrue = (combineOperation === 'OR') ? results.some(r => r) : results.every(r => r);
-              console.log(`   Combined Result (${combineOperation}): ${isTrue}`);
-              
-          } else if (condition) {
-              // Legacy eval mode
-              console.log('   Using legacy condition evaluation');
-              const fn = new Function('input', `return ${condition}`);
-              isTrue = !!fn(inputData);
-          }
-  
-          // Extract output data based on configuration
-          const trueData = trueOutputSource ? this.getNestedValue(inputData, trueOutputSource) : inputData;
-          const falseData = falseOutputSource ? this.getNestedValue(inputData, falseOutputSource) : inputData;
-  
-          console.log(`   Condition Met: ${isTrue}`);
-          console.log(`   Routing to: ${isTrue ? 'TRUE' : 'FALSE'} output`);
-  
-          // Boolean branching - only send to one output
-          return {
-              conditionMet: isTrue,
-              isSplitterMode: false,
-              
-              // Main outputs - only one will have data
-              true: isTrue ? trueData : null,
-              false: isTrue ? null : falseData,
-              
-              // Aliases
-              passed: isTrue ? trueData : null,
-              failed: isTrue ? null : falseData,
-              
-              // Legacy compatibility
-              val: isTrue,
-              
-              // Metadata
-              mode: 'boolean',
-              evaluatedConditions: conditions?.length || 0
-          };
-  
-      } catch (error: any) {
-          console.error('   ❌ Condition evaluation failed:', error.message);
-          throw new Error(`Condition evaluation failed: ${error.message}`);
+    const { condition, conditions, combineOperation, trueOutputSource, falseOutputSource } = context.nodeData;
+
+    console.log('🔀 Condition Node Execution');
+    console.log('   Input Data:', JSON.stringify(inputData, null, 2).substring(0, 200));
+    console.log('   True Output Source:', trueOutputSource || '(none)');
+    console.log('   False Output Source:', falseOutputSource || '(none)');
+
+    try {
+      // Check if we're in Array Splitter Mode (both output sources configured)
+      const isSplitterMode = !!(trueOutputSource && falseOutputSource);
+
+      if (isSplitterMode) {
+        console.log('   ✂️ Array Splitter Mode ACTIVE');
+
+        // Extract arrays from specified paths
+        const trueData = this.getNestedValue(inputData, trueOutputSource);
+        const falseData = this.getNestedValue(inputData, falseOutputSource);
+
+        console.log('   True Data:', Array.isArray(trueData) ? `Array(${trueData.length})` : typeof trueData);
+        console.log('   False Data:', Array.isArray(falseData) ? `Array(${falseData.length})` : typeof falseData);
+
+        // In splitter mode, send both outputs simultaneously
+        return {
+          conditionMet: true, // Not used in splitter mode
+          isSplitterMode: true,
+
+          // Main outputs
+          true: trueData,
+          false: falseData,
+
+          // Aliases for compatibility
+          passed: trueData,
+          failed: falseData,
+
+          // Metadata
+          trueCount: Array.isArray(trueData) ? trueData.length : (trueData ? 1 : 0),
+          falseCount: Array.isArray(falseData) ? falseData.length : (falseData ? 1 : 0),
+          mode: 'splitter'
+        };
       }
+
+      // Array Filtering Logic: If input is array, split items based on conditions
+      if (Array.isArray(inputData) && conditions && conditions.length > 0 && !isSplitterMode) {
+        console.log(`   🔄 Processing Array Input (${inputData.length} items)`);
+
+        const passed: any[] = [];
+        const failed: any[] = [];
+
+        inputData.forEach((item: any, idx: number) => {
+          // Reuse logic - Extract simple evaluation to helper if possible, or duplicate safely
+          const results = conditions.map((cond: any) => {
+            const { field, operator, value } = cond;
+            const itemValue = this.getNestedValue(item, field);
+
+            let result = false;
+            switch (operator) {
+              case 'equals': result = String(itemValue) === value; break;
+              case 'notEquals': result = String(itemValue) !== value; break;
+              case 'greaterThan': result = Number(itemValue) > Number(value); break;
+              case 'lessThan': result = Number(itemValue) < Number(value); break;
+              case 'greaterOrEqual': result = Number(itemValue) >= Number(value); break;
+              case 'lessOrEqual': result = Number(itemValue) <= Number(value); break;
+              case 'contains': result = String(itemValue).toLowerCase().includes(value.toLowerCase()); break;
+              case 'startsWith': result = String(itemValue).toLowerCase().startsWith(value.toLowerCase()); break;
+              case 'endsWith': result = String(itemValue).toLowerCase().endsWith(value.toLowerCase()); break;
+              case 'typeIs':
+                if (value === 'string') result = typeof itemValue === 'string';
+                else if (value === 'number') result = typeof itemValue === 'number' && !isNaN(itemValue);
+                else if (value === 'boolean') result = typeof itemValue === 'boolean';
+                else if (value === 'array') result = Array.isArray(itemValue);
+                else if (value === 'object') result = typeof itemValue === 'object' && itemValue !== null && !Array.isArray(itemValue);
+                else if (value === 'null') result = itemValue === null;
+                else if (value === 'undefined') result = itemValue === undefined;
+                break;
+              default: result = false;
+            }
+            console.log(`      Item[${idx}] Field "${field}": ${itemValue} (${typeof itemValue}) ${operator} ${value} -> ${result}`);
+            return result;
+          });
+
+          const isMatch = (combineOperation === 'OR') ? results.some(r => r) : results.every(r => r);
+          if (isMatch) passed.push(item);
+          else failed.push(item);
+        });
+
+        console.log(`   ✅ Array Split Complete: ${passed.length} Passed, ${failed.length} Failed`);
+
+        return {
+          conditionMet: passed.length > 0,
+          isSplitterMode: false,
+          isArrayMode: true,
+          true: passed,
+          false: failed,
+          passed: passed,
+          failed: failed,
+          trueCount: passed.length,
+          falseCount: failed.length,
+          mode: 'array_filter'
+        };
+      }
+
+      // Boolean Branching Mode - Evaluate conditions
+      console.log('   🔀 Boolean Branching Mode');
+      let isTrue = false;
+
+      // Modern Condition Builder (array of conditions)
+      if (Array.isArray(conditions) && conditions.length > 0) {
+        console.log(`   Evaluating ${conditions.length} condition(s) with ${combineOperation} logic`);
+
+        const results = conditions.map((cond: any, idx: number) => {
+          const { field, operator, value } = cond;
+          const itemValue = this.getNestedValue(inputData, field);
+
+          let result = false;
+          switch (operator) {
+            case 'equals':
+              result = String(itemValue) === value;
+              break;
+            case 'notEquals':
+              result = String(itemValue) !== value;
+              break;
+            case 'greaterThan':
+              result = Number(itemValue) > Number(value);
+              break;
+            case 'lessThan':
+              result = Number(itemValue) < Number(value);
+              break;
+            case 'greaterOrEqual':
+              result = Number(itemValue) >= Number(value);
+              break;
+            case 'lessOrEqual':
+              result = Number(itemValue) <= Number(value);
+              break;
+            case 'contains':
+              result = String(itemValue).toLowerCase().includes(value.toLowerCase());
+              break;
+            case 'startsWith':
+              result = String(itemValue).toLowerCase().startsWith(value.toLowerCase());
+              break;
+            case 'endsWith':
+              result = String(itemValue).toLowerCase().endsWith(value.toLowerCase());
+              break;
+            default:
+              result = false;
+          }
+
+          console.log(`   Condition ${idx + 1}: ${field} ${operator} "${value}" → ${itemValue} → ${result}`);
+          return result;
+        });
+
+        isTrue = (combineOperation === 'OR') ? results.some(r => r) : results.every(r => r);
+        console.log(`   Combined Result (${combineOperation}): ${isTrue}`);
+
+      } else if (condition) {
+        // Legacy eval mode
+        console.log('   Using legacy condition evaluation');
+        const fn = new Function('input', `return ${condition}`);
+        isTrue = !!fn(inputData);
+      }
+
+      // Extract output data based on configuration
+      const trueData = trueOutputSource ? this.getNestedValue(inputData, trueOutputSource) : inputData;
+      const falseData = falseOutputSource ? this.getNestedValue(inputData, falseOutputSource) : inputData;
+
+      console.log(`   Condition Met: ${isTrue}`);
+      console.log(`   Routing to: ${isTrue ? 'TRUE' : 'FALSE'} output`);
+
+      // Boolean branching - only send to one output
+      return {
+        conditionMet: isTrue,
+        isSplitterMode: false,
+
+        // Main outputs - only one will have data
+        true: isTrue ? trueData : null,
+        false: isTrue ? null : falseData,
+
+        // Aliases
+        passed: isTrue ? trueData : null,
+        failed: isTrue ? null : falseData,
+
+        // Legacy compatibility
+        val: isTrue,
+
+        // Metadata
+        mode: 'boolean',
+        evaluatedConditions: conditions?.length || 0
+      };
+
+    } catch (error: any) {
+      console.error('   ❌ Condition evaluation failed:', error.message);
+      throw new Error(`Condition evaluation failed: ${error.message}`);
+    }
   }
   private async executeFilter(context: NodeContext, inputData: any): Promise<any> {
     const { conditions, combineOperation, arrayPath } = context.nodeData;
