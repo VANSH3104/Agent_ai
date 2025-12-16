@@ -404,7 +404,7 @@ export class WorkflowExecutionService {
       triggerData: any;
     }
   ) {
-    const { nodeMap, adjacencyList } = graph;
+    const { nodeMap, adjacencyList, connections } = graph;
     const { workflowId, executionId, userId, mode, triggerData } = executionContext;
 
     const executedNodes = new Set<string>();
@@ -415,6 +415,9 @@ export class WorkflowExecutionService {
 
     let executionOrder = 1;
     console.log('\n🎯 Starting graph traversal...\n');
+    if (connections.length > 0) {
+      console.log('🔍 Debug: First connection keys:', Object.keys(connections[0]));
+    }
 
     while (queue.length > 0) {
       const { nodeId, inputData, depth } = queue.shift()!;
@@ -571,9 +574,44 @@ export class WorkflowExecutionService {
         }
 
         for (const nextNodeId of nextNodeIds) {
+          // Find the specific connection to determine which handle (port) it came from
+          // Find the specific connection to determine which handle (port) it came from
+          const connection = connections.find(c => {
+            const source = c.sourceNodeId || (c as any).source_node_id;
+            const target = c.targetNodeId || (c as any).target_node_id;
+            return source === nodeId && target === nextNodeId;
+          });
+
+          let nextInput = result.data;
+
+          if (connection) {
+            console.log(`${indent}   🔗 Connection Found: ${connection.id}`);
+            const fromOutput = connection.fromOutput || (connection as any).from_output;
+            console.log(`${indent}      Source Handle: ${fromOutput || '(default)'}`);
+
+            if (fromOutput) {
+              const sourceHandle = fromOutput;
+              // Debug: Check if key exists
+              const hasKey = result.data && typeof result.data === 'object' && sourceHandle in result.data;
+              console.log(`${indent}      Output Keys: ${Object.keys(result.data || {}).join(', ')}`);
+              console.log(`${indent}      Key match found: ${hasKey}`);
+
+              if (hasKey) {
+                nextInput = result.data[sourceHandle];
+                console.log(`${indent}   🔀 Routing via handle "${sourceHandle}":`, Array.isArray(nextInput) ? `Array(${nextInput.length})` : typeof nextInput);
+              } else {
+                // Fallback check: maybe handle has prefix?
+                // e.g. handle is "source-true", key is "true"
+                // OR handle is "true", key is "passed" (if user mapped it?)
+              }
+            }
+          } else {
+            console.warn(`${indent}   ⚠️ No connection metadata found for ${nodeId} -> ${nextNodeId}`);
+          }
+
           queue.push({
             nodeId: nextNodeId,
-            inputData: result.data,
+            inputData: nextInput,
             depth: depth + 1
           });
         }

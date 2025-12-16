@@ -753,6 +753,22 @@ export const NODE_CONFIGS: Record<string, NodeConfig> = {
         ],
         description: 'How to combine multiple conditions'
       },
+      {
+        id: 'trueOutputSource',
+        name: 'True Output Source (Path)',
+        type: 'string',
+        required: false,
+        placeholder: 'e.g., passed (leave empty for full input)',
+        description: 'Field to send to True output'
+      },
+      {
+        id: 'falseOutputSource',
+        name: 'False Output Source (Path)',
+        type: 'string',
+        required: false,
+        placeholder: 'e.g., removed',
+        description: 'Field to send to False output'
+      }
     ],
     outputs: [
       {

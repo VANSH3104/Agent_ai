@@ -5,31 +5,67 @@ import { Plus, Trash2 } from 'lucide-react';
 
 interface FilterCondition {
     field: string;
-    operator: 'equals' | 'notEquals' | 'greaterThan' | 'lessThan' | 'contains' | 'startsWith' | 'endsWith';
+    operator: 'equals' | 'notEquals' | 'greaterThan' | 'lessThan' | 'contains' | 'startsWith' | 'endsWith' | 'typeIs';
     value: string;
 }
 
 interface FilterConfig {
     conditions: FilterCondition[];
     combineOperation: 'AND' | 'OR';
+    arrayPath?: string;
 }
 
 interface FilterViewProps {
     initialData?: Partial<FilterConfig>;
     onSave?: (config: FilterConfig) => void;
     nodeData?: any;
+    inputData?: any[]; // Re-add input data
 }
 
-export const FilterView: React.FC<FilterViewProps> = ({ initialData = {}, onSave }) => {
+export const FilterView: React.FC<FilterViewProps> = ({
+    initialData = {},
+    onSave,
+    inputData = [] // Default to empty array
+}) => {
     const [config, setConfig] = useState<FilterConfig>({
         conditions: initialData.conditions || [{ field: '', operator: 'equals', value: '' }],
         combineOperation: initialData.combineOperation || 'AND',
+        arrayPath: initialData.arrayPath || '',
     });
+
+    const [availableFields, setAvailableFields] = useState<string[]>([]);
+
+    // Extract available fields from input data
+    useEffect(() => {
+        if (inputData) {
+            // Handle both array and single object input for field extraction
+            let sampleItem = null;
+            if (Array.isArray(inputData) && inputData.length > 0) {
+                sampleItem = inputData[0];
+            } else if (!Array.isArray(inputData) && typeof inputData === 'object') {
+                sampleItem = inputData;
+            }
+
+            if (sampleItem && typeof sampleItem === 'object') {
+                const extractKeys = (obj: any, prefix = ''): string[] => {
+                    return Object.keys(obj).reduce((acc: string[], key) => {
+                        const newKey = prefix ? `${prefix}.${key}` : key;
+                        if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+                            return [...acc, ...extractKeys(obj[key], newKey)];
+                        }
+                        return [...acc, newKey];
+                    }, []);
+                };
+                setAvailableFields(extractKeys(sampleItem));
+            }
+        }
+    }, [inputData]);
 
     useEffect(() => {
         setConfig({
             conditions: initialData.conditions || [{ field: '', operator: 'equals', value: '' }],
             combineOperation: initialData.combineOperation || 'AND',
+            arrayPath: initialData.arrayPath || '',
         });
     }, [initialData]);
 
@@ -41,12 +77,13 @@ export const FilterView: React.FC<FilterViewProps> = ({ initialData = {}, onSave
         { label: 'Contains', value: 'contains' },
         { label: 'Starts With', value: 'startsWith' },
         { label: 'Ends With', value: 'endsWith' },
+        { label: 'Type Is', value: 'typeIs' }, // Added Type check capability
     ];
 
     const addCondition = () => {
         setConfig(prev => ({
             ...prev,
-            conditions: [...prev.conditions, { field: '', operator: 'equals', value: '' }]
+            conditions: [...prev.conditions, { field: availableFields[0] || '', operator: 'equals', value: '' }]
         }));
     };
 
@@ -83,6 +120,25 @@ export const FilterView: React.FC<FilterViewProps> = ({ initialData = {}, onSave
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm text-blue-800">
                         💡 <strong>Input:</strong> This node expects an array of items from the previous node. Each item will be evaluated against the filter conditions.
+                    </p>
+                </div>
+
+                {/* Array Path Configuration */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Array Path (Optional)
+                    </label>
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={(config as any).arrayPath || ''}
+                            onChange={(e) => setConfig(prev => ({ ...prev, arrayPath: e.target.value }))}
+                            placeholder="e.g. 'body' or 'data.items' (leave empty to auto-detect)"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Specify where the list is located in the input data. Essential for Webhook inputs (e.g., use "body").
                     </p>
                 </div>
 
@@ -133,13 +189,26 @@ export const FilterView: React.FC<FilterViewProps> = ({ initialData = {}, onSave
                                     <label className="block text-xs font-medium text-gray-700 mb-1">
                                         Field Name *
                                     </label>
-                                    <input
-                                        type="text"
-                                        value={condition.field}
-                                        onChange={(e) => updateCondition(index, 'field', e.target.value)}
-                                        placeholder="age"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                    />
+                                    {availableFields.length > 0 ? (
+                                        <select
+                                            value={condition.field}
+                                            onChange={(e) => updateCondition(index, 'field', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                        >
+                                            <option value="">Select a field</option>
+                                            {availableFields.map(field => (
+                                                <option key={field} value={field}>{field}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={condition.field}
+                                            onChange={(e) => updateCondition(index, 'field', e.target.value)}
+                                            placeholder="age"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                        />
+                                    )}
                                 </div>
 
                                 <div>
@@ -188,7 +257,7 @@ export const FilterView: React.FC<FilterViewProps> = ({ initialData = {}, onSave
                     <div className="text-xs text-gray-600 space-y-1">
                         <p><strong>Filtered Items:</strong> Items that match {config.combineOperation === 'AND' ? 'all' : 'any'} conditions</p>
                         <p><strong>Count:</strong> Number of items that matched</p>
-                        <p><strong>Removed Items:</strong> Items that didn't match the conditions</p>
+                        <p><strong>Removed Items:</strong> Items that didn&apos;t match the conditions</p>
                     </div>
                 </div>
             </div>

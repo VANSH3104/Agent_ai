@@ -15,6 +15,12 @@ export interface NodeContext extends HookContext {
   nodeData: any;
 }
 
+interface FilterCondition {
+  field: string;
+  operator: 'equals' | 'notEquals' | 'greaterThan' | 'lessThan' | 'contains' | 'startsWith' | 'endsWith' | 'typeIs';
+  value: string;
+}
+
 export interface HookResult {
   success: boolean;
   data?: any;
@@ -783,42 +789,288 @@ export class WorkflowHooksService {
   }
 
   private async executeCondition(context: NodeContext, inputData: any): Promise<any> {
-    const { condition, trueOutput, falseOutput } = context.nodeData;
-
-    try {
-      // Evaluate condition
-      const fn = new Function('input', `return ${condition}`);
-      const result = fn(inputData);
-
-      return {
-        conditionMet: !!result,
-        output: result ? trueOutput : falseOutput,
-        inputData
-      };
-    } catch (error: any) {
-      throw new Error(`Condition evaluation failed: ${error.message}`);
-    }
+      const { condition, conditions, combineOperation, trueOutputSource, falseOutputSource } = context.nodeData;
+  
+      console.log('🔀 Condition Node Execution');
+      console.log('   Input Data:', JSON.stringify(inputData, null, 2).substring(0, 200));
+      console.log('   True Output Source:', trueOutputSource || '(none)');
+      console.log('   False Output Source:', falseOutputSource || '(none)');
+  
+      try {
+          // Check if we're in Array Splitter Mode (both output sources configured)
+          const isSplitterMode = !!(trueOutputSource && falseOutputSource);
+  
+          if (isSplitterMode) {
+              console.log('   ✂️ Array Splitter Mode ACTIVE');
+              
+              // Extract arrays from specified paths
+              const trueData = this.getNestedValue(inputData, trueOutputSource);
+              const falseData = this.getNestedValue(inputData, falseOutputSource);
+  
+              console.log('   True Data:', Array.isArray(trueData) ? `Array(${trueData.length})` : typeof trueData);
+              console.log('   False Data:', Array.isArray(falseData) ? `Array(${falseData.length})` : typeof falseData);
+  
+              // In splitter mode, send both outputs simultaneously
+              return {
+                  conditionMet: true, // Not used in splitter mode
+                  isSplitterMode: true,
+                  
+                  // Main outputs
+                  true: trueData,
+                  false: falseData,
+                  
+                  // Aliases for compatibility
+                  passed: trueData,
+                  failed: falseData,
+                  
+                  // Metadata
+                  trueCount: Array.isArray(trueData) ? trueData.length : (trueData ? 1 : 0),
+                  falseCount: Array.isArray(falseData) ? falseData.length : (falseData ? 1 : 0),
+                  mode: 'splitter'
+              };
+          }
+  
+          // Boolean Branching Mode - Evaluate conditions
+          console.log('   🔀 Boolean Branching Mode');
+          let isTrue = false;
+  
+          // Modern Condition Builder (array of conditions)
+          if (Array.isArray(conditions) && conditions.length > 0) {
+              console.log(`   Evaluating ${conditions.length} condition(s) with ${combineOperation} logic`);
+              
+              const results = conditions.map((cond: any, idx: number) => {
+                  const { field, operator, value } = cond;
+                  const itemValue = this.getNestedValue(inputData, field);
+                  
+                  let result = false;
+                  switch (operator) {
+                      case 'equals': 
+                          result = String(itemValue) === value;
+                          break;
+                      case 'notEquals': 
+                          result = String(itemValue) !== value;
+                          break;
+                      case 'greaterThan': 
+                          result = Number(itemValue) > Number(value);
+                          break;
+                      case 'lessThan': 
+                          result = Number(itemValue) < Number(value);
+                          break;
+                      case 'greaterOrEqual': 
+                          result = Number(itemValue) >= Number(value);
+                          break;
+                      case 'lessOrEqual': 
+                          result = Number(itemValue) <= Number(value);
+                          break;
+                      case 'contains': 
+                          result = String(itemValue).toLowerCase().includes(value.toLowerCase());
+                          break;
+                      case 'startsWith': 
+                          result = String(itemValue).toLowerCase().startsWith(value.toLowerCase());
+                          break;
+                      case 'endsWith': 
+                          result = String(itemValue).toLowerCase().endsWith(value.toLowerCase());
+                          break;
+                      default: 
+                          result = false;
+                  }
+                  
+                  console.log(`   Condition ${idx + 1}: ${field} ${operator} "${value}" → ${itemValue} → ${result}`);
+                  return result;
+              });
+  
+              isTrue = (combineOperation === 'OR') ? results.some(r => r) : results.every(r => r);
+              console.log(`   Combined Result (${combineOperation}): ${isTrue}`);
+              
+          } else if (condition) {
+              // Legacy eval mode
+              console.log('   Using legacy condition evaluation');
+              const fn = new Function('input', `return ${condition}`);
+              isTrue = !!fn(inputData);
+          }
+  
+          // Extract output data based on configuration
+          const trueData = trueOutputSource ? this.getNestedValue(inputData, trueOutputSource) : inputData;
+          const falseData = falseOutputSource ? this.getNestedValue(inputData, falseOutputSource) : inputData;
+  
+          console.log(`   Condition Met: ${isTrue}`);
+          console.log(`   Routing to: ${isTrue ? 'TRUE' : 'FALSE'} output`);
+  
+          // Boolean branching - only send to one output
+          return {
+              conditionMet: isTrue,
+              isSplitterMode: false,
+              
+              // Main outputs - only one will have data
+              true: isTrue ? trueData : null,
+              false: isTrue ? null : falseData,
+              
+              // Aliases
+              passed: isTrue ? trueData : null,
+              failed: isTrue ? null : falseData,
+              
+              // Legacy compatibility
+              val: isTrue,
+              
+              // Metadata
+              mode: 'boolean',
+              evaluatedConditions: conditions?.length || 0
+          };
+  
+      } catch (error: any) {
+          console.error('   ❌ Condition evaluation failed:', error.message);
+          throw new Error(`Condition evaluation failed: ${error.message}`);
+      }
   }
-
   private async executeFilter(context: NodeContext, inputData: any): Promise<any> {
-    const { filterCondition } = context.nodeData;
+    const { conditions, combineOperation, arrayPath } = context.nodeData;
 
-    if (!Array.isArray(inputData)) {
-      throw new Error('Filter node requires array input');
+    let itemsToFilter = inputData;
+
+    // Parse if string (handling double-encoding if necessary)
+    if (typeof itemsToFilter === 'string') {
+      try {
+        itemsToFilter = JSON.parse(itemsToFilter);
+        // Check if it's still a string (double encoded)
+        if (typeof itemsToFilter === 'string') {
+          itemsToFilter = JSON.parse(itemsToFilter);
+        }
+      } catch (e) {
+        console.warn('Filter received string input but failed to parse as JSON:', e);
+      }
+    }
+
+    // 1. Explicit Path Strategy: If user configured a path, try to use it
+    if (arrayPath && itemsToFilter && typeof itemsToFilter === 'object') {
+      console.log(`Filter using configured array path: "${arrayPath}"`);
+      const extracted = this.getNestedValue(itemsToFilter, arrayPath);
+
+      if (Array.isArray(extracted)) {
+        itemsToFilter = extracted;
+        console.log(`✅ Found array at "${arrayPath}"`);
+      } else {
+        console.warn(`⚠️ Configured path "${arrayPath}" did not resolve to an array. Value:`, extracted);
+      }
+    }
+
+    // 2. Smart Extraction Strategy: If still not array, try auto-detection
+    if (!Array.isArray(itemsToFilter)) {
+      console.log('Filter input is object, attempting smart extraction...');
+
+      if (Array.isArray(itemsToFilter.body)) {
+        itemsToFilter = itemsToFilter.body;
+        console.log('✅ Found array in "body" property');
+      } else if (Array.isArray(itemsToFilter.data)) {
+        itemsToFilter = itemsToFilter.data;
+        console.log('✅ Found array in "data" property');
+      } else if (Array.isArray(itemsToFilter.items)) {
+        itemsToFilter = itemsToFilter.items;
+        console.log('✅ Found array in "items" property');
+      } else if (Array.isArray(itemsToFilter.rows)) {
+        itemsToFilter = itemsToFilter.rows;
+        console.log('✅ Found array in "rows" property');
+      } else {
+        // Try to reconstruct array if it looks like an array spread into object (e.g. { "0": {...}, "1": {...} })
+        const keys = Object.keys(itemsToFilter).filter(k => /^\d+$/.test(k));
+        if (keys.length > 0 && keys.length === Object.keys(itemsToFilter).filter(k => k !== 'triggeredAt' && k !== 'triggerType' && k !== 'metadata').length) {
+          // It looks like a spread array
+          itemsToFilter = keys.sort((a, b) => Number(a) - Number(b)).map(k => itemsToFilter[k]);
+          console.log('✅ Reconstructed array from indexed object properties');
+        }
+      }
+    }
+
+    // 3. Fallback for Single Object: If input is an object but not an array, treat it as a single item
+    if (!Array.isArray(itemsToFilter) && typeof itemsToFilter === 'object' && itemsToFilter !== null) {
+      console.log('Filter received single object, treating as 1-item array for filtering');
+      itemsToFilter = [itemsToFilter];
+    }
+
+    if (!Array.isArray(itemsToFilter)) {
+      console.error('Filter node input:', JSON.stringify(inputData, null, 2));
+      throw new Error(`Filter node requires an Array or Object input. Received: ${typeof inputData}.
+         If your data is inside a property (like "body"), please configure the "Array Path" in the node settings (e.g., set it to "body").`);
+    }
+
+    if (!conditions || conditions.length === 0) {
+      return {
+        filtered: itemsToFilter,
+        originalCount: itemsToFilter.length,
+        filteredCount: itemsToFilter.length,
+        count: itemsToFilter.length,
+        passed: itemsToFilter,
+        removed: []
+      };
     }
 
     try {
-      const fn = new Function('item', `return ${filterCondition}`);
-      const filtered = inputData.filter(fn);
+      const filterFn = (item: any) => {
+        const results = conditions.map((condition: FilterCondition) => {
+          const { field, operator, value } = condition;
+          const itemValue = this.getNestedValue(item, field);
+
+          switch (operator) {
+            case 'equals':
+              return String(itemValue) === value;
+            case 'notEquals':
+              return String(itemValue) !== value;
+            case 'greaterThan':
+              return Number(itemValue) > Number(value);
+            case 'lessThan':
+              return Number(itemValue) < Number(value);
+            case 'contains':
+              return String(itemValue).toLowerCase().includes(value.toLowerCase());
+            case 'startsWith':
+              return String(itemValue).toLowerCase().startsWith(value.toLowerCase());
+            case 'endsWith':
+              return String(itemValue).toLowerCase().endsWith(value.toLowerCase());
+            case 'typeIs':
+              return typeof itemValue === value;
+            default:
+              return false;
+          }
+        });
+
+        return combineOperation === 'AND'
+          ? results.every(r => r)
+          : results.some(r => r);
+      };
+
+      const passed = itemsToFilter.filter(filterFn);
+      const filteredOut = itemsToFilter.filter((item: any) => !filterFn(item));
 
       return {
-        filtered,
-        originalCount: inputData.length,
-        filteredCount: filtered.length
+        filtered: passed,
+        originalCount: itemsToFilter.length,
+        filteredCount: passed.length,
+        count: passed.length, // Match nodetypes.ts 'count' output
+        passed,
+        removed: filteredOut, // Match nodetypes.ts 'removed' output
+        conditions,
+        combineOperation
       };
     } catch (error: any) {
       throw new Error(`Filter execution failed: ${error.message}`);
     }
+  }
+
+  private getNestedValue(obj: any, path: string): any {
+    if (!path) return undefined;
+    if (path.includes('[')) {
+      // Handle array indexing like 'users[0].name'
+      return path.replace(/\]/g, '').split(/[.\[]/).reduce((current, key) => {
+        if (current && typeof current === 'object' && key in current) {
+          return current[key];
+        }
+        return undefined;
+      }, obj);
+    }
+    return path.split('.').reduce((current, key) => {
+      if (current && typeof current === 'object' && key in current) {
+        return current[key];
+      }
+      return undefined;
+    }, obj);
   }
 
   private async executeDatabaseQuery(context: NodeContext, inputData: any): Promise<any> {
