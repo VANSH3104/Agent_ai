@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { MessageCircle, Check, AlertCircle, Plus, Trash2 } from 'lucide-react';
 import { useTRPC } from '@/trpc/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface DiscordCredentials {
     webhookUrl: string;
@@ -66,15 +67,19 @@ export const DiscordView: React.FC<DiscordViewProps> = ({ initialData = {}, onSa
     // TRPC hooks
     const trpc = useTRPC();
 
-    const existingCredentials = useQuery({
-        queryKey: ['discordCredentials'],
-        queryFn: () => trpc.credentials.getDiscordCredentials.query(),
-    });
+    const existingCredentials = useQuery(trpc.credentials.getDiscordCredentials.queryOptions());
 
     const saveCredentialsMutation = useMutation({
-        mutationFn: (credentials: DiscordCredentials) =>
-            trpc.credentials.saveDiscordCredentials.mutate({ credentials }),
-        onSuccess: () => setCredentialsSaved(true),
+        ...trpc.credentials.saveDiscordCredentials.mutationOptions(),
+        onSuccess: () => {
+            setCredentialsSaved(true);
+            toast.success("Discord credentials saved successfully");
+            existingCredentials.refetch();
+        },
+        onError: (error) => {
+            setCredentialsSaved(false);
+            toast.error(`Failed to save credentials: ${error.message}`);
+        }
     });
 
     // Load existing credentials
@@ -85,7 +90,7 @@ export const DiscordView: React.FC<DiscordViewProps> = ({ initialData = {}, onSa
             });
             setCredentialsSaved(true);
         }
-    }, [existingCredentials]);
+    }, [existingCredentials.data]);
 
     // Update config from initialData
     useEffect(() => {
@@ -149,7 +154,7 @@ export const DiscordView: React.FC<DiscordViewProps> = ({ initialData = {}, onSa
     };
 
     const handleSaveCredentials = () => {
-        saveCredentialsMutation.mutate(discordCreds);
+        saveCredentialsMutation.mutate({ credentials: discordCreds });
     };
 
     const handleSave = () => {

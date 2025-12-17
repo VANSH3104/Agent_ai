@@ -1815,82 +1815,197 @@ export class WorkflowHooksService {
     };
   }
 
-  // ============ DISCORD EXECUTION ============  
-  private async executeDiscord(context: NodeContext, inputData: any): Promise<any> {
-    const userId = context.userId;
-    if (!userId) {
-      throw new Error('Discord node: User ID is required to fetch credentials');
-    }
+  // ============ DISCORD EXECUTION ============
+  private interpolateVariables(template: string, variables: any): string {
+    if (!template) return '';
+    return template.replace(/\{\{(.*?)\}\}/g, (match, key) => {
+      const path = key.trim().split('.');
+      let value = variables;
 
-    // Fetch Discord credentials
-    const { db } = await import('@/db');
-    const { credentials } = await import('@/db/schema');
-    const { eq, and } = await import('drizzle-orm');
+      for (const part of path) {
+        if (value === undefined || value === null) break;
+        value = value[part];
+      }
 
-    const credentialResult = await db
-      .select()
-      .from(credentials)
-      .where(
-        and(
-          eq(credentials.userId, userId),
-          eq(credentials.type, 'DISCORD'),
-          eq(credentials.isActive, true)
-        )
-      )
-      .limit(1);
-
-    if (credentialResult.length === 0) {
-      throw new Error('Discord node: No Discord webhook configured');
-    }
-
-    const discordCreds = credentialResult[0].data as any;
-    const { webhookUrl } = discordCreds;
-
-    if (!webhookUrl) {
-      throw new Error('Discord node: Webhook URL is required');
-    }
-
-    const message = inputData?.message || context.nodeData.message || JSON.stringify(inputData);
-
-    console.log(`💬 Sending Discord message via webhook`);
-
-    // Prepare Discord message payload
-    const payload: any = {
-      content: message,
-      username: context.nodeData.username || 'Workflow Bot',
-    };
-
-    if (context.nodeData.avatarUrl) {
-      payload.avatar_url = context.nodeData.avatarUrl;
-    }
-
-    // Add embeds if configured
-    if (context.nodeData.embedTitle || context.nodeData.embedDescription) {
-      payload.embeds = [{
-        title: context.nodeData.embedTitle,
-        description: context.nodeData.embedDescription,
-        color: parseInt(context.nodeData.embedColor?.replace('#', '') || '5865F2', 16),
-      }];
-    }
-
-    // Send to Discord webhook
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      if (value !== undefined) {
+        if (typeof value === 'object') {
+          return JSON.stringify(value);
+        }
+        return String(value);
+      }
+      return match;
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Discord webhook error: ${response.status} - ${errorText}`);
-    }
-
-    return {
-      sent: true,
-      message,
-      timestamp: new Date().toISOString()
-    };
   }
+
+  private async executeDiscord(context: NodeContext, inputData: any): Promise<any> {
+      const userId = context.userId;
+      if (!userId) {
+        throw new Error('Discord node: User ID is required to fetch credentials');
+      }
+  
+      // Fetch Discord credentials
+      const { db } = await import('@/db');
+      const { credentials } = await import('@/db/schema');
+      const { eq, and } = await import('drizzle-orm');
+  
+      const credentialResult = await db
+        .select()
+        .from(credentials)
+        .where(
+          and(
+            eq(credentials.userId, userId),
+            eq(credentials.type, 'DISCORD'),
+            eq(credentials.isActive, true)
+          )
+        )
+        .limit(1);
+  
+      if (credentialResult.length === 0) {
+        throw new Error('Discord node: No Discord webhook configured');
+      }
+  
+      const discordCreds = credentialResult[0].data as any;
+      const { webhookUrl } = discordCreds;
+  
+      if (!webhookUrl) {
+        throw new Error('Discord node: Webhook URL is required');
+      }
+  
+      // Prepare variables for interpolation
+      const variables = { ...inputData };
+  
+      console.log(`💬 Sending Discord message via webhook`, { nodeData: context.nodeData, inputData });
+  
+      // Helper to extract nested data using path notation (e.g., "metadata.path", "user.name")
+      const extractByPath = (obj: any, path: string): any => {
+        if (!path) return obj;
+        
+        const keys = path.split('.');
+        let result = obj;
+        
+        for (const key of keys) {
+          if (result === null || result === undefined) {
+            return undefined;
+          }
+          result = result[key];
+        }
+        
+        return result;
+      };
+  
+      // Enhanced interpolation that supports path extraction
+      const interpolate = (text: string): string => {
+        if (!text) return '';
+        
+        // Match {{path.to.data}} patterns
+        return text.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+          const trimmedPath = path.trim();
+          const value = extractByPath(variables, trimmedPath);
+          
+          if (value === undefined || value === null) {
+            return match; // Keep original if not found
+          }
+          
+          // Handle objects/arrays by stringifying
+          if (typeof value === 'object') {
+            return JSON.stringify(value, null, 2);
+          }
+          
+          return String(value);
+        });
+      };
+  
+      // 1. Handle Message Content
+      let content = context.nodeData.content || '';
+      if (!content && context.nodeData.message) {
+        content = context.nodeData.message;
+      }
+      
+      // If content is empty, check if there's a specific path to extract
+      if (!content && context.nodeData.dataPath) {
+        const extractedData = extractByPath(inputData, context.nodeData.dataPath);
+        content = typeof extractedData === 'string' 
+          ? extractedData 
+          : JSON.stringify(extractedData, null, 2);
+      }
+      
+      // Final fallback to full input data
+      if (!content && !context.nodeData.useEmbed && !context.nodeData.embed) {
+        content = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
+      }
+  
+      content = interpolate(content);
+  
+      // 2. Prepare Payload
+      const payload: any = {
+        content: content,
+        username: interpolate(context.nodeData.username || 'Workflow Bot'),
+      };
+  
+      if (context.nodeData.avatarUrl) {
+        payload.avatar_url = interpolate(context.nodeData.avatarUrl);
+      }
+  
+      // 3. Handle Embeds
+      const useEmbed = context.nodeData.useEmbed ?? (!!context.nodeData.embedTitle || !!context.nodeData.embed);
+  
+      if (useEmbed) {
+        const embedConfig = context.nodeData.embed || {};
+        const flatTitle = context.nodeData.embedTitle;
+        const flatDescription = context.nodeData.embedDescription;
+        const flatColor = context.nodeData.embedColor;
+  
+        const title = interpolate(embedConfig.title || flatTitle || '');
+        const description = interpolate(embedConfig.description || flatDescription || '');
+  
+        if (title || description || (embedConfig.fields && embedConfig.fields.length > 0)) {
+          const colorHex = embedConfig.color || flatColor || '#5865F2';
+          const colorInt = parseInt(colorHex.replace('#', ''), 16);
+  
+          const embed: any = {
+            title: title,
+            description: description,
+            color: isNaN(colorInt) ? 5793266 : colorInt,
+          };
+  
+          if (embedConfig.footer) {
+            embed.footer = { text: interpolate(embedConfig.footer) };
+          }
+  
+          if (embedConfig.timestamp) {
+            embed.timestamp = new Date().toISOString();
+          }
+  
+          if (embedConfig.fields && Array.isArray(embedConfig.fields)) {
+            embed.fields = embedConfig.fields.map((field: any) => ({
+              name: interpolate(field.name || ''),
+              value: interpolate(field.value || ''),
+              inline: !!field.inline
+            }));
+          }
+  
+          payload.embeds = [embed];
+        }
+      }
+  
+      // Send to Discord webhook
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Discord webhook error: ${response.status} - ${errorText}`);
+      }
+  
+      return {
+        sent: true,
+        content,
+        timestamp: new Date().toISOString()
+      };
+    }
 }
