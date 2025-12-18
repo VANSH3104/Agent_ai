@@ -140,65 +140,218 @@ export class WorkflowHooksService {
     };
   }
 
+  
   private async executeHttpRequest(context: NodeContext, inputData: any): Promise<any> {
-    const { url, method = 'GET', headers = [], body, queryParams = [], timeout = 30000 } = context.nodeData;
-
+    const { 
+      url, 
+      method = 'GET', 
+      headers = [], 
+      body, 
+      queryParams = [], 
+      timeout = 30000,
+      authentication = 'none',
+      authConfig = {}
+    } = context.nodeData;
+  
     if (!url) {
       throw new Error('HTTP node: URL is required');
     }
-
-    // Build query string
-    let finalUrl = url;
+  
+    console.log(`🌐 HTTP Request: ${method} ${url}`);
+    console.log(`   Authentication: ${authentication}`);
+  
+    // Interpolate URL with variables from input
+    let finalUrl = this.interpolateVariables(url, inputData);
+  
+    // Build query string with interpolation
     if (queryParams.length > 0) {
       const params = new URLSearchParams();
       queryParams.forEach((param: any) => {
         if (param.key && param.value) {
-          params.append(param.key, param.value);
+          const interpolatedKey = this.interpolateVariables(param.key, inputData);
+          const interpolatedValue = this.interpolateVariables(param.value, inputData);
+          params.append(interpolatedKey, interpolatedValue);
         }
       });
-      finalUrl = `${url}?${params.toString()}`;
+      const queryString = params.toString();
+      if (queryString) {
+        finalUrl = `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}${queryString}`;
+      }
     }
-
-    // Build headers
+  
+    console.log(`   Final URL: ${finalUrl}`);
+  
+    // Build headers with interpolation
     const fetchHeaders: Record<string, string> = {};
     headers.forEach((header: any) => {
       if (header.key && header.value) {
-        fetchHeaders[header.key] = header.value;
+        const interpolatedKey = this.interpolateVariables(header.key, inputData);
+        const interpolatedValue = this.interpolateVariables(header.value, inputData);
+        fetchHeaders[interpolatedKey] = interpolatedValue;
       }
     });
-
-    // Make request
+  
+    // Handle Authentication
+    switch (authentication) {
+      case 'basic':
+        if (authConfig.username && authConfig.password) {
+          const credentials = btoa(`${authConfig.username}:${authConfig.password}`);
+          fetchHeaders['Authorization'] = `Basic ${credentials}`;
+          console.log(`   ✔ Basic Auth configured`);
+        }
+        break;
+  
+      case 'bearer':
+        if (authConfig.token) {
+          const token = this.interpolateVariables(authConfig.token, inputData);
+          
+          // Check if token already has a prefix (Bearer/Token/etc)
+          const tokenLower = token.toLowerCase().trim();
+          if (tokenLower.startsWith('bearer ') || tokenLower.startsWith('token ')) {
+            // Use token as-is if it already has a prefix
+            fetchHeaders['Authorization'] = token;
+            console.log(`   ✔ Auth token configured with existing prefix`);
+          } else {
+            // Default to Bearer prefix
+            fetchHeaders['Authorization'] = `Bearer ${token}`;
+            console.log(`   ✔ Bearer token configured`);
+          }
+        }
+        break;
+  
+      case 'apiKey':
+        if (authConfig.keyName && authConfig.keyValue) {
+          const interpolatedKeyName = this.interpolateVariables(authConfig.keyName, inputData);
+          const interpolatedKeyValue = this.interpolateVariables(authConfig.keyValue, inputData);
+          
+          if (authConfig.location === 'header') {
+            fetchHeaders[interpolatedKeyName] = interpolatedKeyValue;
+            console.log(`   ✔ API Key configured in header: ${interpolatedKeyName}`);
+          } else if (authConfig.location === 'query') {
+            const separator = finalUrl.includes('?') ? '&' : '?';
+            finalUrl = `${finalUrl}${separator}${encodeURIComponent(interpolatedKeyName)}=${encodeURIComponent(interpolatedKeyValue)}`;
+            console.log(`   ✔ API Key configured in query parameter: ${interpolatedKeyName}`);
+          }
+        }
+        break;
+  
+      case 'none':
+      default:
+        // No authentication
+        break;
+    }
+  
+    // Prepare request body with interpolation
+    let requestBody: string | undefined = undefined;
+    
+    if (method !== 'GET' && method !== 'HEAD') {
+      if (body?.content) {
+        // Interpolate body content
+        requestBody = this.interpolateVariables(body.content, inputData);
+        
+        // Set appropriate Content-Type if not already set
+        if (!fetchHeaders['Content-Type'] && !fetchHeaders['content-type']) {
+          if (body.type === 'json') {
+            fetchHeaders['Content-Type'] = 'application/json';
+            
+            // Validate JSON if type is json
+            try {
+              JSON.parse(requestBody);
+            } catch (e) {
+              console.warn(`   ⚠️ Body type is JSON but content is not valid JSON`);
+            }
+          } else if (body.type === 'form') {
+            fetchHeaders['Content-Type'] = 'application/x-www-form-urlencoded';
+          } else if (body.type === 'raw') {
+            fetchHeaders['Content-Type'] = 'text/plain';
+          }
+        }
+        
+        console.log(`   Body Type: ${body.type}`);
+        console.log(`   Body Preview: ${requestBody.substring(0, 100)}${requestBody.length > 100 ? '...' : ''}`);
+      } else if (inputData && typeof inputData === 'object' && Object.keys(inputData).length > 0) {
+        // Use input data as body if no body is configured
+        requestBody = JSON.stringify(inputData);
+        if (!fetchHeaders['Content-Type'] && !fetchHeaders['content-type']) {
+          fetchHeaders['Content-Type'] = 'application/json';
+        }
+        console.log(`   Using input data as request body`);
+      }
+    }
+  
+    console.log(`   Headers:`, Object.keys(fetchHeaders).join(', '));
+  
+    // Make request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-
+  
     try {
+      console.log(`   📤 Sending ${method} request...`);
+      
       const response = await fetch(finalUrl, {
         method,
         headers: fetchHeaders,
-        body: method !== 'GET' && body ? JSON.stringify(body) : undefined,
+        body: requestBody,
         signal: controller.signal
       });
-
+  
       clearTimeout(timeoutId);
-
-      const data = await response.json();
-
+  
+      console.log(`   ✔ Response received: ${response.status} ${response.statusText}`);
+  
+      // Try to parse response as JSON, fall back to text
+      let responseData: any;
+      const contentType = response.headers.get('content-type') || '';
+      
+      try {
+        if (contentType.includes('application/json')) {
+          responseData = await response.json();
+        } else {
+          responseData = await response.text();
+        }
+      } catch (parseError) {
+        console.warn(`   ⚠️ Failed to parse response, using text`);
+        responseData = await response.text();
+      }
+  
       return {
         statusCode: response.status,
+        statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
-        data,
+        body: responseData,
+        data: responseData, // Alias for compatibility
         success: response.ok,
         url: finalUrl,
-        method
+        method,
+        timestamp: new Date().toISOString()
       };
+  
     } catch (error: any) {
       clearTimeout(timeoutId);
-
+  
+      console.error(`   ❌ HTTP request failed:`, error.message);
+  
       if (error.name === 'AbortError') {
         throw new Error(`HTTP request timeout after ${timeout}ms`);
       }
-
-      throw new Error(`HTTP request failed: ${error.message}`);
+  
+      // Provide helpful error messages
+      let errorMessage = `HTTP request failed: ${error.message}`;
+  
+      if (error.message.includes('fetch failed')) {
+        errorMessage += '\n\n🌐 Connection failed. Check:\n' +
+          '1. URL is correct and accessible\n' +
+          '2. Network connectivity\n' +
+          '3. Server is running and accepting connections';
+      } else if (error.message.includes('ENOTFOUND')) {
+        errorMessage += '\n\n🔍 DNS lookup failed. The domain could not be resolved.';
+      } else if (error.message.includes('ECONNREFUSED')) {
+        errorMessage += '\n\n🚫 Connection refused. The server is not accepting connections on this port.';
+      } else if (error.message.includes('certificate')) {
+        errorMessage += '\n\n🔒 SSL/TLS certificate error. The server certificate may be invalid.';
+      }
+  
+      throw new Error(errorMessage);
     }
   }
 
