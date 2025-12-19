@@ -437,7 +437,7 @@ export class WorkflowExecutionService {
       const indent = '  '.repeat(depth);
 
       console.log(`${indent}▶️  [${executionOrder}] ${node.name} (${node.types})`);
-      console.log(`${indent}   📥 Input:`, JSON.stringify(inputData, null, 2).split('\n').join(`\n${indent}      `));
+      console.log(`${indent}   📥 Input:`, (JSON.stringify(inputData, null, 2) || '{}').split('\n').join(`\n${indent}      `));
 
       const [nodeExecution] = await db
         .insert(nodeExecutions)
@@ -520,7 +520,7 @@ export class WorkflowExecutionService {
         nodeOutputs.set(nodeId, result.data);
         executedNodes.add(nodeId);
 
-        console.log(`${indent}   📤 Output:`, JSON.stringify(result.data, null, 2).split('\n').join(`\n${indent}      `));
+        console.log(`${indent}   📤 Output:`, (JSON.stringify(result.data, null, 2) || '{}').split('\n').join(`\n${indent}      `));
         console.log(`${indent}   ✅ Completed in ${executionTime}ms`);
 
         await db.insert(executionLogs).values({
@@ -785,9 +785,206 @@ export class WorkflowExecutionService {
   }
 
   async cleanup() {
-    await this.kafkaService.disconnect();
     this.consumerInitialized.clear();
     this.initializationLocks.clear();
+  }
+
+  async executeWorkflowFromNode(
+    workflowId: string,
+    userId: string,
+    nodeId: string,
+    mode: 'production' | 'test' = 'test'
+  ) {
+    console.log(`\n🎯 Executing workflow FROM node: ${nodeId} (Workflow: ${workflowId})`);
+
+    // 1. Get workflow and node details
+    const workflow = await db
+      .select()
+      .from(workflows)
+      .where(
+        and(
+          eq(workflows.id, workflowId),
+          eq(workflows.userId, userId)
+        )
+      )
+      .limit(1);
+
+    if (!workflow.length) throw new Error('Workflow not found or access denied');
+
+    const node = await db
+      .select()
+      .from(buildNodes)
+      .where(
+        and(
+          eq(buildNodes.id, nodeId),
+          eq(buildNodes.workflowId, workflowId)
+        )
+      )
+      .limit(1);
+
+    if (!node.length) throw new Error('Node not found');
+    const targetNode = node[0];
+
+    // 2. Find latest workflow execution to get context/inputs
+    const latestExecution = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowId))
+      .orderBy(desc(workflowExecutions.createdAt))
+      .limit(1);
+
+    let previousExecutionId: string | undefined;
+
+    if (latestExecution.length) {
+      previousExecutionId = latestExecution[0].id;
+      console.log(`   Detailed Context from previous execution: ${previousExecutionId}`);
+    }
+
+    // 3. Resolve Input Data from Parents (from PREVIOUS execution)
+    const incomingConnections = await db
+      .select()
+      .from(nodeConnections)
+      .where(eq(nodeConnections.targetNodeId, nodeId));
+
+    let inputData: any = {};
+    let resolvedFromHistory = false;
+
+    if (incomingConnections.length > 0 && previousExecutionId) {
+      const sourceNodeIds = incomingConnections.map(c => c.sourceNodeId);
+
+      const parentExecutions = await db
+        .select()
+        .from(nodeExecutions)
+        .where(
+          and(
+            eq(nodeExecutions.workflowExecutionId, previousExecutionId),
+            inArray(nodeExecutions.nodeId, sourceNodeIds)
+          )
+        );
+
+      for (const conn of incomingConnections) {
+        const parentExec = parentExecutions.find(pe => pe.nodeId === conn.sourceNodeId);
+        if (parentExec && parentExec.outputData) {
+          resolvedFromHistory = true;
+          const output = parentExec.outputData as any;
+          if (conn.fromOutput && output[conn.fromOutput]) {
+            if (typeof output[conn.fromOutput] === 'object') {
+              inputData = { ...inputData, ...output[conn.fromOutput] };
+            } else {
+              inputData = output[conn.fromOutput];
+            }
+          } else {
+            inputData = { ...inputData, ...output };
+          }
+        }
+      }
+    } else {
+      // If no parents (Trigger node?), use previous triggerData or empty
+      if ((targetNode.types === 'MANUAL' || targetNode.types === 'WEBHOOK') && latestExecution.length) {
+        inputData = latestExecution[0].triggerData;
+        resolvedFromHistory = true;
+      }
+    }
+
+    console.log(`   📥 Resolved Input Data (History: ${resolvedFromHistory}):`, JSON.stringify(inputData).substring(0, 200));
+
+    // 4. Create NEW Partial Execution Record
+    const [execution] = await db
+      .insert(workflowExecutions)
+      .values({
+        workflowId,
+        status: 'PENDING',
+        triggerData: inputData, // Use resolved input as trigger data for this partial run? Or keep original? 
+        // Actually, for partial run, the "trigger" is effectively this node's input.
+        mode,
+        startedAt: new Date()
+      })
+      .returning();
+
+    console.log(`   🚀 Created NEW Partial Execution: ${execution.id}`);
+
+    // 5. Build Graph
+    const nodes = await db
+      .select()
+      .from(buildNodes)
+      .where(eq(buildNodes.workflowId, workflowId))
+      .orderBy(buildNodes.createdAt);
+
+    const connections = await db
+      .select()
+      .from(nodeConnections)
+      .where(eq(nodeConnections.sourceNodeId, nodeId) /* optimization? no, need full graph for traversal? */);
+    // Wait, we need FULL graph interactions for traversal to work downstream. 
+    // But we can just fetch all connections for safety.
+
+    // Better fetch ALL connections for this workflow
+    const allConnections = await db
+      .select()
+      .from(nodeConnections)
+      .where(
+        or(
+          inArray(nodeConnections.sourceNodeId, nodes.map(n => n.id)),
+          inArray(nodeConnections.targetNodeId, nodes.map(n => n.id))
+        )
+      );
+
+    const graph = this.buildGraph(nodes as any[], allConnections as any[]);
+
+    // 6. Execute Traversal STARTING from this node
+    // Pass the resolved inputData as the "triggerData" or initial input for the start node
+    await this.executeGraphTraversal(
+      nodeId,
+      graph,
+      {
+        workflowId,
+        executionId: execution.id,
+        userId,
+        mode,
+        triggerData: inputData // This will be used as input for the startNodeId (targetNode)
+      }
+    );
+
+    await this.updateExecutionStatus(execution.id, 'SUCCESS');
+
+    return {
+      success: true,
+      executionId: execution.id,
+      message: `Started workflow from ${targetNode.name}`
+    };
+  }
+
+  async clearNodeExecution(
+    workflowId: string,
+    userId: string,
+    nodeId: string
+  ) {
+    // 1. Get latest execution
+    const executions = await db.select({ id: workflowExecutions.id })
+      .from(workflowExecutions)
+      .innerJoin(workflows, eq(workflowExecutions.workflowId, workflows.id))
+      .where(
+        and(
+          eq(workflows.id, workflowId),
+          eq(workflows.userId, userId)
+        )
+      )
+      .orderBy(desc(workflowExecutions.createdAt))
+      .limit(1);
+
+    if (!executions.length) return { success: false, message: 'No execution found' };
+
+    const executionId = executions[0].id;
+
+    // 2. Delete node execution for this node in the latest workflow execution
+    await db.delete(nodeExecutions)
+      .where(
+        and(
+          eq(nodeExecutions.workflowExecutionId, executionId),
+          eq(nodeExecutions.nodeId, nodeId)
+        )
+      );
+
+    return { success: true };
   }
 }
 

@@ -1,8 +1,8 @@
 "use client"
 import { useState } from "react";
 import { NodePropertiesConfig } from "../components/constrants/nodeproperties";
-import { X } from "lucide-react";
-import { useTriggerAgent } from "../../Agents/server/hooks/agentHook";
+import { X, Play, Trash, Loader2 } from "lucide-react";
+import { useTriggerAgent, useExecuteFromNode, useClearNodeExecution } from "../../Agents/server/hooks/agentHook";
 import { Node } from "@xyflow/react";
 import { LogViewer } from "./LogViewer";
 
@@ -29,7 +29,30 @@ export const PropertiesPanel = ({
   onSaveConfig,
 }: PropertiesPanelProps) => {
   const trigger = useTriggerAgent();
+  const executeNode = useExecuteFromNode();
+  const clearNode = useClearNodeExecution();
+
   const [activeTab, setActiveTab] = useState<'inputs' | 'params' | 'outputs'>('params');
+
+  const handleExecute = () => {
+    if (!selectedNode) return;
+    executeNode.mutate({
+      workflowId,
+      nodeId: selectedNode.id,
+      mode: 'test'
+    });
+    // Valid UX to switch to outputs tab to see result
+    setActiveTab('outputs');
+  };
+
+  const handleClear = () => {
+    if (!selectedNode) return;
+    clearNode.mutate({
+      workflowId,
+      nodeId: selectedNode.id
+    });
+  };
+
   if (!selectedNode) return null;
   const nodeType = selectedNode.type || 'manual';
   console.log("node types ", selectedNode.type)
@@ -64,17 +87,40 @@ export const PropertiesPanel = ({
       >
 
         {/* HEADER */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-medium text-gray-800 truncate max-w-[50%]">
-            Node: {String(selectedNode?.data?.label || config?.label || '')}
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
+          <h3 className="text-lg font-medium text-gray-800 truncate max-w-[40%] flex items-center gap-2">
+            <div className="w-2 h-6 bg-blue-500 rounded-full" />
+            {String(selectedNode?.data?.label || config?.label || '')}
           </h3>
 
-          <button
-            className="p-1 text-gray-500 hover:text-gray-700"
-            onClick={() => setIsOpen(false)}
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={executeNode.isPending}
+              onClick={handleExecute}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {executeNode.isPending ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+              Execute Node
+            </button>
+
+            <button
+              disabled={clearNode.isPending}
+              onClick={handleClear}
+              title="Clear Data"
+              className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+            >
+              <Trash size={16} />
+            </button>
+
+            <div className="h-4 w-px bg-gray-300 mx-1" />
+
+            <button
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* TABS */}

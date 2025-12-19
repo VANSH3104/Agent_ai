@@ -5,8 +5,8 @@ import { useTRPC } from '@/trpc/client';
 import { useQuery, useMutation } from '@tanstack/react-query';
 
 interface SimpleDatabaseConfig {
-    operation: 'insert' | 'raw'; //insert uses the simple UI, raw allows custom SQL
-    multipleQueries?: boolean; // Enable multiple inserts
+    operation: 'insert' | 'raw';
+    multipleQueries?: boolean;
     queries?: Array<{
         tableName: string;
         columnName: string;
@@ -17,7 +17,7 @@ interface SimpleDatabaseConfig {
     tableName?: string;
     columnName?: string;
     fieldToExtract?: string;
-    rawSql?: string; // For raw SQL mode
+    rawSql?: string
 }
 
 interface DatabaseCredentials {
@@ -67,10 +67,8 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
     const [useConnectionUrl, setUseConnectionUrl] = useState(true);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Sample input for preview
     const sampleInput = { test: "data", message: "from webhook" };
 
-    // Fetch existing credentials
     const { data: existingCredentials, isLoading } = useQuery(
         trpc.credentials.getDatabaseCredentials.queryOptions()
     );
@@ -78,8 +76,6 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
     const saveCredentialsMutation = useMutation(
         trpc.credentials.saveDatabaseCredentials.mutationOptions()
     );
-
-    // Load credentials when available
     useEffect(() => {
         if (existingCredentials?.data) {
             const creds = existingCredentials.data;
@@ -103,7 +99,6 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
         }
     }, [existingCredentials]);
 
-    // Update config from initialData
     useEffect(() => {
         setConfig({
             operation: initialData.operation || 'insert',
@@ -176,7 +171,6 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
         }
     };
 
-    // Generate preview query
     const getPreviewQuery = () => {
         if (!config.tableName) return null;
 
@@ -217,7 +211,6 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
             </div>
 
             <div className="space-y-6">
-                {/* Database Credentials Section */}
                 <div className="border rounded-lg p-4 bg-gray-50">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">
@@ -395,11 +388,9 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
                     )}
                 </div>
 
-                {/* Insert Configuration */}
                 <div className="space-y-4">
                     <h2 className="text-lg font-semibold text-gray-900">Insert Configuration</h2>
 
-                    {/* Operation Mode Selector */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-3">Operation Mode *</label>
                         <div className="grid grid-cols-2 gap-3">
@@ -427,9 +418,7 @@ export const DatabaseView: React.FC<DatabaseViewProps> = ({ initialData = {}, on
                     </div>
 
                     {config.operation === 'insert' ? (
-                        /* Insert Mode UI */
                         <>
-                            {/* Multiple Inserts Toggle */}
                             <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                                 <input
                                     type="checkbox"

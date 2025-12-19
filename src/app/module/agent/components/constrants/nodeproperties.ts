@@ -6,9 +6,10 @@ import { DatabaseView } from "../../Nodecomponents/database/database-view";
 import { FilterView } from "../../Nodecomponents/filter/filter-view";
 import { ConditionView } from "../../Nodecomponents/condition/condition-view";
 import { ScheduleView } from "../../Nodecomponents/schedule/schedule-view";
-import { WebhookView } from "../../Nodecomponents/webhook/webhook-view";
 import { SlackView } from "../../Nodecomponents/slack/slack-view";
 import { DiscordView } from "../../Nodecomponents/discord/discord-view";
+import { WebhookView } from "../../Nodecomponents/webHook/webhook-view";
+import { CodeView } from "../../Nodecomponents/code/code-view";
 
 
 
@@ -40,7 +41,7 @@ export const NodePropertiesConfig: Record<
   http: { label: "HTTP Request", Inputs: null, Params: HttpView, Outputs: null },
   email: { label: "Email", Inputs: null, Params: EmailView, Outputs: null },
   ai: { label: "AI", Inputs: null, Params: AIView, Outputs: null },
-  code: { label: "Code Execution", Inputs: null, Params: null, Outputs: null },
+  code: { label: "Code Execution", Inputs: null, Params: CodeView, Outputs: null },
   database: { label: "Database", Inputs: null, Params: DatabaseView, Outputs: null },
   schedule: { label: "Schedule", Inputs: null, Params: ScheduleView, Outputs: null },
   filter: { label: "Filter", Inputs: null, Params: FilterView, Outputs: null },

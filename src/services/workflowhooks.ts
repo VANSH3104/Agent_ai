@@ -140,29 +140,29 @@ export class WorkflowHooksService {
     };
   }
 
-  
+
   private async executeHttpRequest(context: NodeContext, inputData: any): Promise<any> {
-    const { 
-      url, 
-      method = 'GET', 
-      headers = [], 
-      body, 
-      queryParams = [], 
+    const {
+      url,
+      method = 'GET',
+      headers = [],
+      body,
+      queryParams = [],
       timeout = 30000,
       authentication = 'none',
       authConfig = {}
     } = context.nodeData;
-  
+
     if (!url) {
       throw new Error('HTTP node: URL is required');
     }
-  
+
     console.log(`🌐 HTTP Request: ${method} ${url}`);
     console.log(`   Authentication: ${authentication}`);
-  
+
     // Interpolate URL with variables from input
     let finalUrl = this.interpolateVariables(url, inputData);
-  
+
     // Build query string with interpolation
     if (queryParams.length > 0) {
       const params = new URLSearchParams();
@@ -178,9 +178,9 @@ export class WorkflowHooksService {
         finalUrl = `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}${queryString}`;
       }
     }
-  
+
     console.log(`   Final URL: ${finalUrl}`);
-  
+
     // Build headers with interpolation
     const fetchHeaders: Record<string, string> = {};
     headers.forEach((header: any) => {
@@ -190,7 +190,7 @@ export class WorkflowHooksService {
         fetchHeaders[interpolatedKey] = interpolatedValue;
       }
     });
-  
+
     // Handle Authentication
     switch (authentication) {
       case 'basic':
@@ -200,11 +200,11 @@ export class WorkflowHooksService {
           console.log(`   ✔ Basic Auth configured`);
         }
         break;
-  
+
       case 'bearer':
         if (authConfig.token) {
           const token = this.interpolateVariables(authConfig.token, inputData);
-          
+
           // Check if token already has a prefix (Bearer/Token/etc)
           const tokenLower = token.toLowerCase().trim();
           if (tokenLower.startsWith('bearer ') || tokenLower.startsWith('token ')) {
@@ -218,12 +218,12 @@ export class WorkflowHooksService {
           }
         }
         break;
-  
+
       case 'apiKey':
         if (authConfig.keyName && authConfig.keyValue) {
           const interpolatedKeyName = this.interpolateVariables(authConfig.keyName, inputData);
           const interpolatedKeyValue = this.interpolateVariables(authConfig.keyValue, inputData);
-          
+
           if (authConfig.location === 'header') {
             fetchHeaders[interpolatedKeyName] = interpolatedKeyValue;
             console.log(`   ✔ API Key configured in header: ${interpolatedKeyName}`);
@@ -234,26 +234,26 @@ export class WorkflowHooksService {
           }
         }
         break;
-  
+
       case 'none':
       default:
         // No authentication
         break;
     }
-  
+
     // Prepare request body with interpolation
     let requestBody: string | undefined = undefined;
-    
+
     if (method !== 'GET' && method !== 'HEAD') {
       if (body?.content) {
         // Interpolate body content
         requestBody = this.interpolateVariables(body.content, inputData);
-        
+
         // Set appropriate Content-Type if not already set
         if (!fetchHeaders['Content-Type'] && !fetchHeaders['content-type']) {
           if (body.type === 'json') {
             fetchHeaders['Content-Type'] = 'application/json';
-            
+
             // Validate JSON if type is json
             try {
               JSON.parse(requestBody);
@@ -266,7 +266,7 @@ export class WorkflowHooksService {
             fetchHeaders['Content-Type'] = 'text/plain';
           }
         }
-        
+
         console.log(`   Body Type: ${body.type}`);
         console.log(`   Body Preview: ${requestBody.substring(0, 100)}${requestBody.length > 100 ? '...' : ''}`);
       } else if (inputData && typeof inputData === 'object' && Object.keys(inputData).length > 0) {
@@ -278,31 +278,31 @@ export class WorkflowHooksService {
         console.log(`   Using input data as request body`);
       }
     }
-  
+
     console.log(`   Headers:`, Object.keys(fetchHeaders).join(', '));
-  
+
     // Make request with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
     try {
       console.log(`   📤 Sending ${method} request...`);
-      
+
       const response = await fetch(finalUrl, {
         method,
         headers: fetchHeaders,
         body: requestBody,
         signal: controller.signal
       });
-  
+
       clearTimeout(timeoutId);
-  
+
       console.log(`   ✔ Response received: ${response.status} ${response.statusText}`);
-  
+
       // Try to parse response as JSON, fall back to text
       let responseData: any;
       const contentType = response.headers.get('content-type') || '';
-      
+
       try {
         if (contentType.includes('application/json')) {
           responseData = await response.json();
@@ -313,7 +313,7 @@ export class WorkflowHooksService {
         console.warn(`   ⚠️ Failed to parse response, using text`);
         responseData = await response.text();
       }
-  
+
       return {
         statusCode: response.status,
         statusText: response.statusText,
@@ -325,19 +325,19 @@ export class WorkflowHooksService {
         method,
         timestamp: new Date().toISOString()
       };
-  
+
     } catch (error: any) {
       clearTimeout(timeoutId);
-  
+
       console.error(`   ❌ HTTP request failed:`, error.message);
-  
+
       if (error.name === 'AbortError') {
         throw new Error(`HTTP request timeout after ${timeout}ms`);
       }
-  
+
       // Provide helpful error messages
       let errorMessage = `HTTP request failed: ${error.message}`;
-  
+
       if (error.message.includes('fetch failed')) {
         errorMessage += '\n\n🌐 Connection failed. Check:\n' +
           '1. URL is correct and accessible\n' +
@@ -350,7 +350,7 @@ export class WorkflowHooksService {
       } else if (error.message.includes('certificate')) {
         errorMessage += '\n\n🔒 SSL/TLS certificate error. The server certificate may be invalid.';
       }
-  
+
       throw new Error(errorMessage);
     }
   }
@@ -929,10 +929,9 @@ export class WorkflowHooksService {
     if (language !== 'javascript') {
       throw new Error(`Code execution only supports JavaScript, got: ${language}`);
     }
-
+    console.log('Executing code:', code);
     try {
-      // Create a safe execution context
-      const fn = new Function('input', 'context', code);
+      const fn = new Function('inputData', 'context', code);
       const result = fn(inputData, context);
 
       return result;
@@ -954,7 +953,7 @@ export class WorkflowHooksService {
       const isSplitterMode = !!(trueOutputSource && falseOutputSource);
 
       if (isSplitterMode) {
-        console.log('   ✂️ Array Splitter Mode ACTIVE');
+        console.log(' Array Splitter Mode ACTIVE');
 
         // Extract arrays from specified paths
         const trueData = this.getNestedValue(inputData, trueOutputSource);
@@ -1991,174 +1990,174 @@ export class WorkflowHooksService {
   }
 
   private async executeDiscord(context: NodeContext, inputData: any): Promise<any> {
-      const userId = context.userId;
-      if (!userId) {
-        throw new Error('Discord node: User ID is required to fetch credentials');
-      }
-  
-      // Fetch Discord credentials
-      const { db } = await import('@/db');
-      const { credentials } = await import('@/db/schema');
-      const { eq, and } = await import('drizzle-orm');
-  
-      const credentialResult = await db
-        .select()
-        .from(credentials)
-        .where(
-          and(
-            eq(credentials.userId, userId),
-            eq(credentials.type, 'DISCORD'),
-            eq(credentials.isActive, true)
-          )
-        )
-        .limit(1);
-  
-      if (credentialResult.length === 0) {
-        throw new Error('Discord node: No Discord webhook configured');
-      }
-  
-      const discordCreds = credentialResult[0].data as any;
-      const { webhookUrl } = discordCreds;
-  
-      if (!webhookUrl) {
-        throw new Error('Discord node: Webhook URL is required');
-      }
-  
-      // Prepare variables for interpolation
-      const variables = { ...inputData };
-  
-      console.log(`💬 Sending Discord message via webhook`, { nodeData: context.nodeData, inputData });
-  
-      // Helper to extract nested data using path notation (e.g., "metadata.path", "user.name")
-      const extractByPath = (obj: any, path: string): any => {
-        if (!path) return obj;
-        
-        const keys = path.split('.');
-        let result = obj;
-        
-        for (const key of keys) {
-          if (result === null || result === undefined) {
-            return undefined;
-          }
-          result = result[key];
-        }
-        
-        return result;
-      };
-  
-      // Enhanced interpolation that supports path extraction
-      const interpolate = (text: string): string => {
-        if (!text) return '';
-        
-        // Match {{path.to.data}} patterns
-        return text.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
-          const trimmedPath = path.trim();
-          const value = extractByPath(variables, trimmedPath);
-          
-          if (value === undefined || value === null) {
-            return match; // Keep original if not found
-          }
-          
-          // Handle objects/arrays by stringifying
-          if (typeof value === 'object') {
-            return JSON.stringify(value, null, 2);
-          }
-          
-          return String(value);
-        });
-      };
-  
-      // 1. Handle Message Content
-      let content = context.nodeData.content || '';
-      if (!content && context.nodeData.message) {
-        content = context.nodeData.message;
-      }
-      
-      // If content is empty, check if there's a specific path to extract
-      if (!content && context.nodeData.dataPath) {
-        const extractedData = extractByPath(inputData, context.nodeData.dataPath);
-        content = typeof extractedData === 'string' 
-          ? extractedData 
-          : JSON.stringify(extractedData, null, 2);
-      }
-      
-      // Final fallback to full input data
-      if (!content && !context.nodeData.useEmbed && !context.nodeData.embed) {
-        content = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
-      }
-  
-      content = interpolate(content);
-  
-      // 2. Prepare Payload
-      const payload: any = {
-        content: content,
-        username: interpolate(context.nodeData.username || 'Workflow Bot'),
-      };
-  
-      if (context.nodeData.avatarUrl) {
-        payload.avatar_url = interpolate(context.nodeData.avatarUrl);
-      }
-  
-      // 3. Handle Embeds
-      const useEmbed = context.nodeData.useEmbed ?? (!!context.nodeData.embedTitle || !!context.nodeData.embed);
-  
-      if (useEmbed) {
-        const embedConfig = context.nodeData.embed || {};
-        const flatTitle = context.nodeData.embedTitle;
-        const flatDescription = context.nodeData.embedDescription;
-        const flatColor = context.nodeData.embedColor;
-  
-        const title = interpolate(embedConfig.title || flatTitle || '');
-        const description = interpolate(embedConfig.description || flatDescription || '');
-  
-        if (title || description || (embedConfig.fields && embedConfig.fields.length > 0)) {
-          const colorHex = embedConfig.color || flatColor || '#5865F2';
-          const colorInt = parseInt(colorHex.replace('#', ''), 16);
-  
-          const embed: any = {
-            title: title,
-            description: description,
-            color: isNaN(colorInt) ? 5793266 : colorInt,
-          };
-  
-          if (embedConfig.footer) {
-            embed.footer = { text: interpolate(embedConfig.footer) };
-          }
-  
-          if (embedConfig.timestamp) {
-            embed.timestamp = new Date().toISOString();
-          }
-  
-          if (embedConfig.fields && Array.isArray(embedConfig.fields)) {
-            embed.fields = embedConfig.fields.map((field: any) => ({
-              name: interpolate(field.name || ''),
-              value: interpolate(field.value || ''),
-              inline: !!field.inline
-            }));
-          }
-  
-          payload.embeds = [embed];
-        }
-      }
-  
-      // Send to Discord webhook
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-  
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Discord webhook error: ${response.status} - ${errorText}`);
-      }
-  
-      return {
-        sent: true,
-        content,
-        timestamp: new Date().toISOString()
-      };
+    const userId = context.userId;
+    if (!userId) {
+      throw new Error('Discord node: User ID is required to fetch credentials');
     }
+
+    // Fetch Discord credentials
+    const { db } = await import('@/db');
+    const { credentials } = await import('@/db/schema');
+    const { eq, and } = await import('drizzle-orm');
+
+    const credentialResult = await db
+      .select()
+      .from(credentials)
+      .where(
+        and(
+          eq(credentials.userId, userId),
+          eq(credentials.type, 'DISCORD'),
+          eq(credentials.isActive, true)
+        )
+      )
+      .limit(1);
+
+    if (credentialResult.length === 0) {
+      throw new Error('Discord node: No Discord webhook configured');
+    }
+
+    const discordCreds = credentialResult[0].data as any;
+    const { webhookUrl } = discordCreds;
+
+    if (!webhookUrl) {
+      throw new Error('Discord node: Webhook URL is required');
+    }
+
+    // Prepare variables for interpolation
+    const variables = { ...inputData };
+
+    console.log(`💬 Sending Discord message via webhook`, { nodeData: context.nodeData, inputData });
+
+    // Helper to extract nested data using path notation (e.g., "metadata.path", "user.name")
+    const extractByPath = (obj: any, path: string): any => {
+      if (!path) return obj;
+
+      const keys = path.split('.');
+      let result = obj;
+
+      for (const key of keys) {
+        if (result === null || result === undefined) {
+          return undefined;
+        }
+        result = result[key];
+      }
+
+      return result;
+    };
+
+    // Enhanced interpolation that supports path extraction
+    const interpolate = (text: string): string => {
+      if (!text) return '';
+
+      // Match {{path.to.data}} patterns
+      return text.replace(/\{\{([^}]+)\}\}/g, (match, path) => {
+        const trimmedPath = path.trim();
+        const value = extractByPath(variables, trimmedPath);
+
+        if (value === undefined || value === null) {
+          return match; // Keep original if not found
+        }
+
+        // Handle objects/arrays by stringifying
+        if (typeof value === 'object') {
+          return JSON.stringify(value, null, 2);
+        }
+
+        return String(value);
+      });
+    };
+
+    // 1. Handle Message Content
+    let content = context.nodeData.content || '';
+    if (!content && context.nodeData.message) {
+      content = context.nodeData.message;
+    }
+
+    // If content is empty, check if there's a specific path to extract
+    if (!content && context.nodeData.dataPath) {
+      const extractedData = extractByPath(inputData, context.nodeData.dataPath);
+      content = typeof extractedData === 'string'
+        ? extractedData
+        : JSON.stringify(extractedData, null, 2);
+    }
+
+    // Final fallback to full input data
+    if (!content && !context.nodeData.useEmbed && !context.nodeData.embed) {
+      content = typeof inputData === 'string' ? inputData : JSON.stringify(inputData, null, 2);
+    }
+
+    content = interpolate(content);
+
+    // 2. Prepare Payload
+    const payload: any = {
+      content: content,
+      username: interpolate(context.nodeData.username || 'Workflow Bot'),
+    };
+
+    if (context.nodeData.avatarUrl) {
+      payload.avatar_url = interpolate(context.nodeData.avatarUrl);
+    }
+
+    // 3. Handle Embeds
+    const useEmbed = context.nodeData.useEmbed ?? (!!context.nodeData.embedTitle || !!context.nodeData.embed);
+
+    if (useEmbed) {
+      const embedConfig = context.nodeData.embed || {};
+      const flatTitle = context.nodeData.embedTitle;
+      const flatDescription = context.nodeData.embedDescription;
+      const flatColor = context.nodeData.embedColor;
+
+      const title = interpolate(embedConfig.title || flatTitle || '');
+      const description = interpolate(embedConfig.description || flatDescription || '');
+
+      if (title || description || (embedConfig.fields && embedConfig.fields.length > 0)) {
+        const colorHex = embedConfig.color || flatColor || '#5865F2';
+        const colorInt = parseInt(colorHex.replace('#', ''), 16);
+
+        const embed: any = {
+          title: title,
+          description: description,
+          color: isNaN(colorInt) ? 5793266 : colorInt,
+        };
+
+        if (embedConfig.footer) {
+          embed.footer = { text: interpolate(embedConfig.footer) };
+        }
+
+        if (embedConfig.timestamp) {
+          embed.timestamp = new Date().toISOString();
+        }
+
+        if (embedConfig.fields && Array.isArray(embedConfig.fields)) {
+          embed.fields = embedConfig.fields.map((field: any) => ({
+            name: interpolate(field.name || ''),
+            value: interpolate(field.value || ''),
+            inline: !!field.inline
+          }));
+        }
+
+        payload.embeds = [embed];
+      }
+    }
+
+    // Send to Discord webhook
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Discord webhook error: ${response.status} - ${errorText}`);
+    }
+
+    return {
+      sent: true,
+      content,
+      timestamp: new Date().toISOString()
+    };
+  }
 }

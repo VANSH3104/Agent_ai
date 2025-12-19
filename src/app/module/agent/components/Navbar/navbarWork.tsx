@@ -88,6 +88,20 @@ export const NavbarWork = ({ workflowName, status = "Draft", id }: NavbarProps) 
   const isRunning = status === 'RUNNING';
 
   const handleExecute = () => {
+    if (!isRunning && canvas) {
+      const nodes = canvas.getNodes();
+      const newNodes = nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: 'INITIAL',
+          output: undefined,
+          error: undefined
+        }
+      }));
+      canvas.setNodes(newNodes);
+    }
+
     toggleExecution.mutate({
       workflowId: id,
       isPolling: !isRunning

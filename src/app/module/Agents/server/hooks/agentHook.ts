@@ -232,3 +232,36 @@ export const useToggleExecution = () => {
     }
   }));
 };
+
+export const useExecuteFromNode = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  return useMutation(trpc.agent.executeFromNode.mutationOptions({
+    onSuccess: (data, variables) => {
+      toast.success('Workflow started from selected node');
+      queryClient.invalidateQueries({
+        queryKey: trpc.agent.getWorkflowExecutions.queryOptions({ workflowId: variables.workflowId }).queryKey
+      });
+      // We might need to invalidate specific execution details if we know the ID
+    },
+    onError: (err) => {
+      toast.error(`Execution failed: ${err.message}`);
+    }
+  }));
+}
+
+export const useClearNodeExecution = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+  return useMutation(trpc.agent.clearNodeExecution.mutationOptions({
+    onSuccess: (data, variables) => {
+      toast.success('Node data cleared');
+      queryClient.invalidateQueries({
+        queryKey: trpc.agent.getWorkflowExecutions.queryOptions({ workflowId: variables.workflowId }).queryKey
+      });
+    },
+    onError: (err) => {
+      toast.error(`Failed to clear node data: ${err.message}`);
+    }
+  }));
+}

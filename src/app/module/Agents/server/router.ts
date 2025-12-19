@@ -3,7 +3,7 @@ import { generateSlug } from "random-word-slugs";
 import { db } from "@/db/index";
 import { buildNodes, executionLogs, nodeConnections, nodeExecutions, nodeTypesEnum, workflowExecutions, workflows } from "@/db/schema";
 import { z } from "zod";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, inArray } from "drizzle-orm";
 import { Node, Edge } from "@xyflow/react";
 import { getNodeTypeById } from "../../agent/components/constrants/nodetypes";
 import { WorkflowExecutionService, getWorkflowExecutionService } from "@/services/Workflowexecution";
@@ -217,43 +217,54 @@ export const Agentrouter = createTRPCRouter({
         throw new Error("Workflow not found or unauthorized");
       }
 
-      // Get existing nodes for this workflow
+      // === SMART UPDATE FOR NODES TO PRESERVE HISTORY ===
+
+      // 1. Get existing nodes
       const existingNodes = await db
-        .select({ id: buildNodes.id })
+        .select()
         .from(buildNodes)
         .where(eq(buildNodes.workflowId, id));
 
-      // Delete connections for existing nodes
-      if (existingNodes.length > 0) {
-        const nodeIds = existingNodes.map(n => n.id);
+      const existingNodeIds = new Set(existingNodes.map(n => n.id));
+      const incomingNodeIds = new Set(nodes.map(n => n.id));
 
-        // Delete connections where source or target is one of these nodes
-        for (const nodeId of nodeIds) {
-          await db.delete(nodeConnections).where(
-            eq(nodeConnections.sourceNodeId, nodeId)
-          );
-          await db.delete(nodeConnections).where(
-            eq(nodeConnections.targetNodeId, nodeId)
-          );
-        }
+      // 2. Identify Nodes to ADD, UPDATE, DELETE
+      const nodesToAdd = nodes.filter(n => !existingNodeIds.has(n.id));
+      const nodesToUpdate = nodes.filter(n => existingNodeIds.has(n.id));
+      const nodesToDelete = existingNodes.filter(n => !incomingNodeIds.has(n.id));
+
+      console.log('Node Smart Update Stats:', {
+        toAdd: nodesToAdd.length,
+        toUpdate: nodesToUpdate.length,
+        toDelete: nodesToDelete.length
+      });
+
+      // 3. DELETE removed nodes
+      // This will cascade delete history only for these specific nodes
+      if (nodesToDelete.length > 0) {
+        const idsToDelete = nodesToDelete.map(n => n.id);
+
+        // Delete connections first (to be clean, though cascade might handle it)
+        await db.delete(nodeConnections).where(
+          or(
+            inArray(nodeConnections.sourceNodeId, idsToDelete),
+            inArray(nodeConnections.targetNodeId, idsToDelete)
+          )
+        );
+
+        await db.delete(buildNodes).where(
+          and(
+            eq(buildNodes.workflowId, id),
+            inArray(buildNodes.id, idsToDelete)
+          )
+        );
+        console.log(`Deleted ${idsToDelete.length} removed nodes`);
       }
 
-      // Now delete the nodes
-      await db.delete(buildNodes).where(
-        eq(buildNodes.workflowId, id)
-      );
-
-      // Insert new nodes
-      if (nodes.length > 0) {
-        const nodeData = nodes.map(node => {
+      // 4. INSERT new nodes
+      if (nodesToAdd.length > 0) {
+        const nodeData = nodesToAdd.map(node => {
           const nodeType = getNodeTypeById(node.type);
-
-          console.log('Preparing node for insert:', {
-            nodeId: node.id,
-            nodeType: node.type,
-            schemaType: nodeType?.schemaType
-          });
-
           return {
             id: node.id,
             name: node.data?.label || `Node ${node.id.slice(0, 8)}`,
@@ -263,12 +274,65 @@ export const Agentrouter = createTRPCRouter({
             workflowId: id,
           };
         });
-
         await db.insert(buildNodes).values(nodeData);
-        console.log('Inserted nodes:', nodeData.length);
+        console.log(`Inserted ${nodeData.length} new nodes`);
       }
 
-      // Insert new edges (node connections)
+      // 5. UPDATE existing nodes
+      // We process updates individually or batch if possible. Drizzle batch update is tricky with different values.
+      // Loop is acceptable for typical workflow size (usually < 50 nodes).
+      for (const node of nodesToUpdate) {
+        const nodeType = getNodeTypeById(node.type);
+        await db.update(buildNodes)
+          .set({
+            position: node.position,
+            data: node.data || {},
+            // Ideally type doesn't change for same ID, but safe to update if user somehow swapped it
+            types: (nodeType?.schemaType || 'MANUAL') as typeof nodeTypesEnum.enumValues[number],
+            name: node.data?.label ? node.data.label : undefined, // Keep existing name if label not provided? Or update? Logic above used label or fallback.
+            updatedAt: new Date()
+          })
+          .where(
+            and(
+              eq(buildNodes.id, node.id),
+              eq(buildNodes.workflowId, id)
+            )
+          );
+      }
+      console.log(`Updated ${nodesToUpdate.length} existing nodes`);
+
+      // === HANDLE CONNECTIONS ===
+
+      // For connections, valid strategy is still Delete All + Re-insert 
+      // because connections don't hold execution history (that's on nodes).
+      // However, to be fully "smart", we could diff them too, but it's less critical.
+      // The only risk is if connection IDs are used elsewhere (logs?). 
+      // Schema shows 'node_connections' has ID. But 'execution_logs' don't reference connection IDs directly usually.
+      // Let's stick to Delete All + Re-insert for connections to ensure graph consistency without complex diffing.
+      // We must be careful not to trigger cascade delete on nodes though (connections point to nodes). 
+      // Deleting connections does NOT delete nodes.
+
+      // Delete ALL connections for this workflow
+      // We can delete by finding all connections where source OR target is in the workflow's node set
+      // Or cleaner: fetch all current nodes again? 
+      // Simple way: We know all node IDs belonging to this workflow.
+
+      // Get ALL valid node IDs for this workflow (existing + new)
+      const allWorkflowNodeIds = [...existingNodeIds, ...nodesToAdd.map(n => n.id)].filter(id => !nodesToDelete.find(d => d.id === id));
+
+      if (allWorkflowNodeIds.length > 0) {
+        // Flatten connection delete: Delete where source is in workflow
+        await db.delete(nodeConnections).where(
+          inArray(nodeConnections.sourceNodeId, allWorkflowNodeIds)
+        );
+        // Delete where target is in workflow (should be redundant if we covered all edges, but safe)
+        // Actually, an edge must have both source and target in the workflow (usually).
+        // If we deleted by Source, we got most. But let's be thorough?
+        // Actually, just deleting where key is `sourceNodeId` in `allWorkflowNodeIds` covers all internal edges.
+        // What about edge from external? (not possible here).
+      }
+
+      // Insert new edges
       if (edges.length > 0) {
         const edgeData = edges.map(edge => ({
           id: edge.id,
@@ -280,7 +344,7 @@ export const Agentrouter = createTRPCRouter({
         }));
 
         await db.insert(nodeConnections).values(edgeData);
-        console.log('Inserted edges:', edgeData.length);
+        console.log('Re-inserted edges:', edgeData.length);
       }
 
       return workflowUpdate;
@@ -588,5 +652,41 @@ export const Agentrouter = createTRPCRouter({
         deletedNodeId: deletedNode.id,
         workflowId: input.workflowId // Important: return workflowId for query invalidation
       };
+    }),
+
+  executeFromNode: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      nodeId: z.string(),
+      mode: z.enum(['production', 'test']).default('test')
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const executionService = getWorkflowExecutionService();
+
+      const result = await executionService.executeWorkflowFromNode(
+        input.workflowId,
+        ctx.user.user.id,
+        input.nodeId,
+        input.mode
+      );
+
+      return result;
+    }),
+
+  clearNodeExecution: protectedProcedure
+    .input(z.object({
+      workflowId: z.string(),
+      nodeId: z.string()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const executionService = getWorkflowExecutionService();
+
+      const result = await executionService.clearNodeExecution(
+        input.workflowId,
+        ctx.user.user.id,
+        input.nodeId
+      );
+
+      return result;
     }),
 });
