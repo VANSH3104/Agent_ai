@@ -7,6 +7,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 interface EmailConfig {
     to: string;
     subject: string;
+    body?: string;
     cc?: string;
     bcc?: string;
 }
@@ -43,6 +44,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
     const [emailConfig, setEmailConfig] = useState<EmailConfig>({
         to: initialData.to || '',
         subject: initialData.subject || '',
+        body: initialData.body || '',
         cc: initialData.cc || '',
         bcc: initialData.bcc || ''
     });
@@ -91,6 +93,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
         setEmailConfig({
             to: initialData.to || '',
             subject: initialData.subject || '',
+            body: initialData.body || '',
             cc: initialData.cc || '',
             bcc: initialData.bcc || ''
         });
@@ -381,7 +384,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
 
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <p className="text-sm text-blue-800">
-                            💡 <strong>Email Body:</strong> The email body will be automatically populated from the previous node's output data.
+                            💡 You can use <code>{'{{variable}}'}</code> to insert data from previous nodes.
                         </p>
                     </div>
 
@@ -393,7 +396,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
                             type="text"
                             value={emailConfig.to}
                             onChange={(e) => updateEmailConfig('to', e.target.value)}
-                            placeholder="user@example.com, admin@example.com"
+                            placeholder="user@example.com, {{user.email}}"
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base ${errors.to ? 'border-red-500' : 'border-gray-300'
                                 }`}
                         />
@@ -410,7 +413,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
                             type="text"
                             value={emailConfig.subject}
                             onChange={(e) => updateEmailConfig('subject', e.target.value)}
-                            placeholder="Email Subject"
+                            placeholder="Subject: {{issue.title}}"
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base ${errors.subject ? 'border-red-500' : 'border-gray-300'
                                 }`}
                         />
@@ -421,13 +424,29 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Message / Body
+                        </label>
+                        <textarea
+                            value={emailConfig.body}
+                            onChange={(e) => updateEmailConfig('body', e.target.value)}
+                            placeholder="Hello {{user.name}},\n\nHere is the update you requested..."
+                            rows={6}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base font-mono"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                            Leave empty to send the entire input data as the email body.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                             CC <span className="text-xs text-gray-500 font-normal">(comma-separated)</span>
                         </label>
                         <input
                             type="text"
                             value={emailConfig.cc}
                             onChange={(e) => updateEmailConfig('cc', e.target.value)}
-                            placeholder="cc1@example.com, cc2@example.com"
+                            placeholder="manager@example.com"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                         />
                     </div>
@@ -440,7 +459,7 @@ export const EmailView: React.FC<EmailViewProps> = ({ initialData = {}, onSave }
                             type="text"
                             value={emailConfig.bcc}
                             onChange={(e) => updateEmailConfig('bcc', e.target.value)}
-                            placeholder="bcc1@example.com, bcc2@example.com"
+                            placeholder="archive@example.com"
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                         />
                     </div>

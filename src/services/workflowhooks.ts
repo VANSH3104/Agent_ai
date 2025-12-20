@@ -356,12 +356,22 @@ export class WorkflowHooksService {
   }
 
   private async executeSendEmail(context: NodeContext, inputData: any): Promise<any> {
-    // Get configured values from nodeData, but allow inputData to override/provide dynamic values
-    const to = inputData?.to || context.nodeData.to;
-    const subject = inputData?.subject || context.nodeData.subject;
-    const body = inputData?.body || inputData?.message || JSON.stringify(inputData, null, 2); // Use inputData as body
-    const cc = inputData?.cc || context.nodeData.cc;
-    const bcc = inputData?.bcc || context.nodeData.bcc;
+    const to = inputData?.to || this.interpolateVariables(context.nodeData.to, inputData);
+    const subject = inputData?.subject || this.interpolateVariables(context.nodeData.subject, inputData);
+    const cc = inputData?.cc || this.interpolateVariables(context.nodeData.cc, inputData);
+    const bcc = inputData?.bcc || this.interpolateVariables(context.nodeData.bcc, inputData);
+
+    let body = '';
+
+    if (context.nodeData.body) {
+      body = this.interpolateVariables(context.nodeData.body, inputData);
+    } else if (inputData?.body) {
+      body = typeof inputData.body === 'string' ? inputData.body : JSON.stringify(inputData.body, null, 2);
+    } else if (inputData?.message) {
+      body = typeof inputData.message === 'string' ? inputData.message : JSON.stringify(inputData.message, null, 2);
+    } else {
+      body = JSON.stringify(inputData, null, 2);
+    }
 
     // Validate required fields
     if (!to) {
@@ -1166,7 +1176,7 @@ export class WorkflowHooksService {
     }
 
     // 2. Smart Extraction Strategy: If still not array, try auto-detection
-    if (!Array.isArray(itemsToFilter)) {
+    if (!Array.isArray(itemsToFilter) && typeof itemsToFilter === 'object' && itemsToFilter !== null) {
       console.log('Filter input is object, attempting smart extraction...');
 
       if (Array.isArray(itemsToFilter.body)) {
@@ -1268,16 +1278,11 @@ export class WorkflowHooksService {
 
   private getNestedValue(obj: any, path: string): any {
     if (!path) return undefined;
-    if (path.includes('[')) {
-      // Handle array indexing like 'users[0].name'
-      return path.replace(/\]/g, '').split(/[.\[]/).reduce((current, key) => {
-        if (current && typeof current === 'object' && key in current) {
-          return current[key];
-        }
-        return undefined;
-      }, obj);
-    }
-    return path.split('.').reduce((current, key) => {
+
+    // Normalize path: convert [0] to .0 and handle mixed notation
+    const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1').replace(/^\./, '');
+
+    return normalizedPath.split('.').reduce((current, key) => {
       if (current && typeof current === 'object' && key in current) {
         return current[key];
       }
@@ -1360,8 +1365,13 @@ export class WorkflowHooksService {
           if (!fieldToExtract) {
             throw new Error(`Database node: Field to extract is required for column #${index + 1}`);
           }
-          dataToInsert = inputData?.[fieldToExtract];
+
+          // Use nested value extractor
+          dataToInsert = this.getNestedValue(inputData, fieldToExtract);
+
           if (dataToInsert === undefined) {
+            // Try to be helpful - if they requested "0.record" and it failed, maybe they meant "0" then "record"
+            // But getNestedValue handles dot notation and array indexing.
             throw new Error(`Database node: Field "${fieldToExtract}" not found in input data for column #${index + 1}`);
           }
           if (typeof dataToInsert === 'object' && dataToInsert !== null) {
@@ -1403,13 +1413,14 @@ export class WorkflowHooksService {
         dataToInsert = JSON.stringify(inputData);
         console.log(`   📦 Inserting full JSON data`);
       } else if (insertMode === 'specificField') {
-        // Extract specific field from input
+        // Extract specific field from input using nested path support
         const fieldToExtract = context.nodeData.fieldToExtract;
         if (!fieldToExtract) {
           throw new Error('Database node: Field to extract is required for specificField mode');
         }
 
-        dataToInsert = inputData?.[fieldToExtract];
+        dataToInsert = this.getNestedValue(inputData, fieldToExtract);
+
         if (dataToInsert === undefined) {
           throw new Error(`Database node: Field "${fieldToExtract}" not found in input data. Available fields: ${Object.keys(inputData || {}).join(', ')}`);
         }
