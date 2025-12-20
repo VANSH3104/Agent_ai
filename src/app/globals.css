@@ -41,6 +41,19 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --animate-fade-in-up: fade-in-up 0.5s ease-out forwards;
+
+  @keyframes fade-in-up {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 :root {
@@ -75,7 +88,7 @@
   --sidebar-accent: oklch(0.55 0.35 277);
   --sidebar-accent-foreground: oklch(0.97 0.10 277);
   --sidebar-border: oklch(0.22 0.04 265);
-  --sidebar-ring: oklch(0.40 0.10 270); 
+  --sidebar-ring: oklch(0.40 0.10 270);
 }
 
 .dark {
@@ -116,6 +129,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

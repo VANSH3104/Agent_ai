@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { HydrateClient } from "@/trpc/server";
 import { ErrorBoundary } from "react-error-boundary";
 import { Suspense } from "react";
+import Loading from "../loading";
 const page = async()=>{
     const session = await auth.api.getSession({
         headers: await headers(),
@@ -16,7 +17,7 @@ const page = async()=>{
     <AgentContainer>
     <HydrateClient>
       <ErrorBoundary fallback={<div>error</div>}>
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<Loading/>}>
         <Homeview/>
         </Suspense>
       </ErrorBoundary>

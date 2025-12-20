@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Followpage } from "./components/folowpage";
 import { Toaster } from "@/components/ui/sonner";
+import Loading from "@/app/loading";
 
 const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
@@ -25,7 +26,7 @@ const Page = async ({ params }: { params: Promise<{ id: string }> }) => {
   
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <Suspense fallback={<div>Loading...</div>}>
+      <Suspense fallback={<Loading/>}>
         <div>
           {/* Pass the id as a prop, not the entire params object */}
           <Followpage id={id} />

@@ -29,12 +29,12 @@ export function AgentDialog() {
   const [open, setOpen] = useState(false);
 
   const createWorkflow = useMutation(
-    trpc.workflow.create.mutationOptions({
+    trpc.agent.create.mutationOptions({
       onSuccess: (data) => {
         setOpen(false);
         setInput({ name: '', description: '' });
-        if (data?.id) {
-          router.push(`/workflow/${data.id}`);
+        if (data?.newAgent?.id) {
+          router.push(`/workflow/${data.newAgent.id}`);
         } else {
           alert("No ID returned from server");
         }
@@ -49,7 +49,8 @@ export function AgentDialog() {
 
     try {
       try {
-        const work = createWorkflow.mutate(values);
+        // Backend create mutation does not accept input currently, implies name auto-generation
+        const work = createWorkflow.mutate();
         console.log(work, "work")
       } catch {
         alert("there is mistake")
