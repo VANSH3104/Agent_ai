@@ -1982,7 +1982,16 @@ export class WorkflowHooksService {
   private interpolateVariables(template: string, variables: any): string {
     if (!template) return '';
     return template.replace(/\{\{(.*?)\}\}/g, (match, key) => {
-      const path = key.trim().split('.');
+      let escapeForJson = false;
+      let cleanKey = key.trim();
+
+      // Check for 'json ' prefix to enable JSON escaping
+      if (cleanKey.startsWith('json ')) {
+        escapeForJson = true;
+        cleanKey = cleanKey.substring(5).trim();
+      }
+
+      const path = cleanKey.split('.');
       let value = variables;
 
       for (const part of path) {
@@ -1994,7 +2003,14 @@ export class WorkflowHooksService {
         if (typeof value === 'object') {
           return JSON.stringify(value);
         }
-        return String(value);
+
+        // Return escaped string if requested, otherwise normal string
+        const stringValue = String(value);
+        if (escapeForJson) {
+          // JSON.stringify adds quotes and escapes content. We remove the surrounding quotes.
+          return JSON.stringify(stringValue).slice(1, -1);
+        }
+        return stringValue;
       }
       return match;
     });
