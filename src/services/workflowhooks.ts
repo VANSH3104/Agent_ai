@@ -247,7 +247,12 @@ export class WorkflowHooksService {
     if (method !== 'GET' && method !== 'HEAD') {
       if (body?.content) {
         // Interpolate body content
-        requestBody = this.interpolateVariables(body.content, inputData);
+        // Use special JSON interpolation if body type is JSON to handle escaping
+        if (body.type === 'json') {
+          requestBody = this.interpolateJSON(body.content, inputData);
+        } else {
+          requestBody = this.interpolateVariables(body.content, inputData);
+        }
 
         // Set appropriate Content-Type if not already set
         if (!fetchHeaders['Content-Type'] && !fetchHeaders['content-type']) {
@@ -875,21 +880,15 @@ export class WorkflowHooksService {
       console.log(`Response length: ${response.length} characters`);
       console.log(`Response preview:`, response.substring(0, 150) + '...');
 
-      // IMPROVED JSON PARSING WITH MARKDOWN STRIPPING
+      // IMPROVED JSON PARSING WITH ROBUST EXTRACTION
       try {
-        const trimmedResponse = response.trim();
-
-        // Strip markdown code fences before parsing
-        const cleanedResponse = this.stripMarkdownCodeFences(trimmedResponse);
-
-        if ((cleanedResponse.startsWith('{') && cleanedResponse.endsWith('}')) ||
-          (cleanedResponse.startsWith('[') && cleanedResponse.endsWith(']'))) {
-          const parsed = JSON.parse(cleanedResponse);
-          console.log(`Response parsed as JSON`);
-          return parsed;
+        const parsedJSON = this.extractJSONFromText(response);
+        if (parsedJSON) {
+          console.log(`Response successfully extracted and parsed as JSON`);
+          return parsedJSON;
         }
       } catch (e) {
-        console.log(`Response is plain text (JSON parse failed: ${e})`);
+        console.log(`Response is plain text (JSON extraction failed: ${e})`);
       }
 
       return response;
@@ -932,6 +931,80 @@ export class WorkflowHooksService {
 
       throw new Error(errorMessage);
     }
+  }
+
+  /**
+   * Robustly extracts JSON from a text string, handling markdown code blocks and conversational text
+   */
+  private extractJSONFromText(text: string): any {
+    if (!text) return null;
+
+    const trimmed = text.trim();
+
+    // Strategy 1: Attempt direct parse (fastest)
+    try {
+      return JSON.parse(trimmed);
+    } catch (e) {
+      // Continue to other strategies
+    }
+
+    // Strategy 2: Extract from Markdown code blocks (```json ... ```)
+    const markdownRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    let match;
+    while ((match = markdownRegex.exec(trimmed)) !== null) {
+      if (match[1]) {
+        try {
+          return JSON.parse(match[1]);
+        } catch (e) {
+          // If this block fails, try the next one (if any)
+          continue;
+        }
+      }
+    }
+
+    // Strategy 3: Find first '{' or '[' and last '}' or ']'
+    // This handles "Here is your JSON: { ... } Hope that helps!"
+    const objectStart = trimmed.indexOf('{');
+    const arrayStart = trimmed.indexOf('[');
+
+    // Determine which structure appears first
+    let start = -1;
+    let isObject = false;
+
+    if (objectStart !== -1 && arrayStart !== -1) {
+      if (objectStart < arrayStart) {
+        start = objectStart;
+        isObject = true;
+      } else {
+        start = arrayStart;
+        isObject = false;
+      }
+    } else if (objectStart !== -1) {
+      start = objectStart;
+      isObject = true;
+    } else if (arrayStart !== -1) {
+      start = arrayStart;
+      isObject = false;
+    }
+
+    if (start !== -1) {
+      const endChar = isObject ? '}' : ']';
+      const end = trimmed.lastIndexOf(endChar);
+
+      if (end !== -1 && end > start) {
+        const potentialJson = trimmed.substring(start, end + 1);
+        try {
+          return JSON.parse(potentialJson);
+        } catch (e) {
+          // Failed to parse extracted substring
+        }
+      }
+    }
+
+    // Strategy 4: Fallback - try to clean common issues like trailing commas (simple cases only)
+    // or maybe "JSON:" prefix extraction if not covered by above.
+    // For now, if strict strict parsing failed, we return null to indicate "Plain Text" fallback
+    return null;
   }
   private async executeCode(context: NodeContext, inputData: any): Promise<any> {
     const { code, language = 'javascript' } = context.nodeData;
@@ -2014,6 +2087,60 @@ export class WorkflowHooksService {
       }
       return match;
     });
+  }
+
+  /**
+   * Special interpolation for JSON templates that handles escaping correctly
+   * Handles:
+   * 1. "{{variable}}" -> Replaces entire string with JSON safe value (string with quotes, number, boolean, object)
+   * 2. {{variable}} -> Replaces inline, simple string replacement
+   */
+  private interpolateJSON(template: string, variables: any): string {
+    if (!template) return '';
+
+    // Pass 1: Handle quoted variables: "{{variable}}"
+    // We want to replace the whole thing including quotes with the JSON stringified value
+    // This allows strings to be properly escaped (newlines -> \n) and objects to remain objects
+    let result = template.replace(/"\{\{(.*?)\}\}"/g, (match, key) => {
+      const cleanKey = key.trim();
+      const path = cleanKey.split('.');
+      let value = variables;
+
+      for (const part of path) {
+        if (value === undefined || value === null) break;
+        value = value[part];
+      }
+
+      if (value !== undefined) {
+        return JSON.stringify(value);
+      }
+      return match;
+    });
+
+    // Pass 2: Handle remaining unquoted variables: {{variable}}
+    // This is for cases like: { "count": {{number}} } or inside other strings
+    result = result.replace(/\{\{(.*?)\}\}/g, (match, key) => {
+      const cleanKey = key.trim();
+      const path = cleanKey.split('.');
+      let value = variables;
+
+      for (const part of path) {
+        if (value === undefined || value === null) break;
+        value = value[part];
+      }
+
+      if (value !== undefined) {
+        if (typeof value === 'object') {
+          return JSON.stringify(value);
+        }
+        // For non-objects appearing unquoted, return the raw value
+        // Users should use quotes in JSON for strings usually, but this supports numbers/booleans
+        return String(value);
+      }
+      return match;
+    });
+
+    return result;
   }
 
   private async executeDiscord(context: NodeContext, inputData: any): Promise<any> {
