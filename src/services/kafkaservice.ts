@@ -1,6 +1,6 @@
 import { Kafka, Admin, Producer, Consumer, EachMessagePayload, Partitioners, CompressionTypes, logLevel } from "kafkajs";
 
-const SASL_MECHANISM = "SCRAM-SHA-256";
+const SASL_MECHANISM = "scram-sha-256";
 
 export class KafkaService {
   private kafka: Kafka;
@@ -12,7 +12,7 @@ export class KafkaService {
   private verifiedTopics: Set<string> = new Set();
 
   constructor() {
-    const brokers = process.env.KAFKA_BROKERS?.split(',');
+    const brokers = process.env.KAFKA_BROKERS?.split(',') || [];
 
     this.kafka = new Kafka({
       clientId: 'workflow-engine',
@@ -23,8 +23,8 @@ export class KafkaService {
       },
       sasl: {
         mechanism: SASL_MECHANISM,
-        username: process.env.KAFKA_USERNAME,
-        password: process.env.KAFKA_PASSWORD
+        username: process.env.KAFKA_USERNAME || '',
+        password: process.env.KAFKA_PASSWORD || ''
       },
       connectionTimeout: 10000,
       requestTimeout: 30000,
@@ -110,20 +110,20 @@ export class KafkaService {
       return result;
     } catch (error: any) {
       console.error(`❌ Error sending message to ${topicName}:`, error.message);
-      
+
       // If topic doesn't exist, you need to enable auto.create.topics.enable in Aiven
-      if (error.message.includes('UnknownTopicOrPartition') || 
-          error.message.includes('TOPIC_NOT_FOUND') ||
-          error.message.includes('does not host this topic-partition')) {
-        
+      if (error.message.includes('UnknownTopicOrPartition') ||
+        error.message.includes('TOPIC_NOT_FOUND') ||
+        error.message.includes('does not host this topic-partition')) {
+
         console.error(`⚠️ Topic ${topicName} does not exist and auto-creation is disabled.`);
         console.error('⚠️ Please enable auto.create.topics.enable=true in Aiven Kafka settings.');
-        
+
         // Alternative: Try to create topic manually
         try {
           console.log(`🔄 Attempting to create topic ${topicName} manually...`);
           await this.createTopicManually(topicName);
-          
+
           // Retry sending
           return this.producer.send({
             topic: topicName,
@@ -136,11 +136,11 @@ export class KafkaService {
             acks: 1,
             timeout: 10000,
           });
-        } catch (createError) {
+        } catch (createError: any) {
           console.error(`❌ Failed to create topic ${topicName}:`, createError.message);
         }
       }
-      
+
       throw error;
     }
   }
@@ -159,7 +159,7 @@ export class KafkaService {
       }
 
       console.log(`Creating topic: ${topicName}...`);
-      
+
       await this.admin.createTopics({
         topics: [{
           topic: topicName,
@@ -172,10 +172,10 @@ export class KafkaService {
 
       this.verifiedTopics.add(topicName);
       console.log(`✓ Successfully created topic: ${topicName}`);
-      
+
       // Wait for topic propagation
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
     } catch (error: any) {
       console.error(`❌ Failed to create topic ${topicName}:`, error.message);
       throw error;
@@ -192,7 +192,7 @@ export class KafkaService {
     } = {}
   ) {
     const consumerKey = `${groupId}-${topics.join(',')}`;
-    
+
     if (this.consumers.has(consumerKey)) {
       console.log(`⚠️ Consumer already exists for ${consumerKey}`);
       return this.consumers.get(consumerKey)!;
@@ -210,7 +210,7 @@ export class KafkaService {
             // Ignore errors - we just want to trigger topic creation
           });
           await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
+        } catch (error: any) {
           console.warn(`Could not ensure topic ${topic}:`, error.message);
         }
       }
@@ -227,11 +227,7 @@ export class KafkaService {
         retries: 10,
         initialRetryTime: 1000,
         maxRetryTime: 30000,
-        retryOnErrors: [
-          'This server does not host this topic-partition',
-          'NotLeaderForPartition',
-          'BrokerNotAvailable',
-        ],
+
       },
     });
 
@@ -256,18 +252,18 @@ export class KafkaService {
           console.log(`✅ Consumer subscribed to topics: ${topics.join(', ')}`);
         } catch (subscribeError: any) {
           console.warn(`Subscribe attempt ${attempts}/${maxAttempts} failed:`, subscribeError.message);
-          
+
           if (attempts === maxAttempts) {
             throw subscribeError;
           }
-          
+
           // Wait and try again
           await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
-          
+
           // Try to ensure topics exist again
           for (const topic of topics) {
             try {
-              await this.sendMessage(topic, '__retry__', { type: 'retry' }).catch(() => {});
+              await this.sendMessage(topic, '__retry__', { type: 'retry' }).catch(() => { });
               await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error) {
               // Ignore
@@ -298,13 +294,13 @@ export class KafkaService {
 
     } catch (error: any) {
       console.error(`❌ Error creating consumer for group ${groupId}:`, error.message);
-      
+
       try {
         await consumer.disconnect();
-      } catch (disconnectError) {
+      } catch (disconnectError: any) {
         console.warn('Failed to disconnect consumer:', disconnectError.message);
       }
-      
+
       throw error;
     }
   }
@@ -317,20 +313,35 @@ export class KafkaService {
   // Pre-create all topics your app needs
   async initializeTopics(topicList: string[]) {
     console.log('Initializing topics...');
-    
+
     for (const topic of topicList) {
       try {
         await this.createTopicManually(topic);
-      } catch (error) {
+      } catch (error: any) {
         console.warn(`Could not initialize topic ${topic}:`, error.message);
       }
     }
-    
+
     console.log('✅ Topic initialization complete');
   }
 
   async getConnectionStatus() {
     return this.isConnected;
+  }
+
+  async removeConsumer(groupId: string, topics: string[]) {
+    const consumerKey = `${groupId}-${topics.join(',')}`;
+    const consumer = this.consumers.get(consumerKey);
+
+    if (consumer) {
+      try {
+        await consumer.disconnect();
+        this.consumers.delete(consumerKey);
+        console.log(`✅ Consumer removed: ${consumerKey}`);
+      } catch (error: any) {
+        console.warn(`Error removing consumer ${consumerKey}:`, error.message);
+      }
+    }
   }
 
   async disconnect() {
@@ -342,17 +353,17 @@ export class KafkaService {
         try {
           await consumer.disconnect();
           console.log(`Disconnected consumer: ${key}`);
-        } catch (error) {
+        } catch (error: any) {
           console.warn(`Error disconnecting consumer ${key}:`, error.message);
         }
       }
-      
+
       // Disconnect producer and admin
       await Promise.all([
-        this.producer.disconnect().catch(err => console.warn('Producer disconnect error:', err.message)),
-        this.admin.disconnect().catch(err => console.warn('Admin disconnect error:', err.message))
+        this.producer.disconnect().catch((err: any) => console.warn('Producer disconnect error:', err.message)),
+        this.admin.disconnect().catch((err: any) => console.warn('Admin disconnect error:', err.message))
       ]);
-      
+
       this.consumers.clear();
       this.isConnected = false;
       console.log('✅ Kafka service disconnected');
@@ -369,11 +380,11 @@ let kafkaServiceInstance: KafkaService | null = null;
 export function getKafkaService(): KafkaService {
   if (!kafkaServiceInstance) {
     kafkaServiceInstance = new KafkaService();
-    
+
     // Initialize topics on startup (optional)
     process.nextTick(async () => {
       try {
-        await kafkaServiceInstance.connect();
+        await kafkaServiceInstance!.connect();
         // Pre-create your topics here
         // await kafkaServiceInstance.initializeTopics(['workflow-events', 'workflow-triggers']);
       } catch (error) {
