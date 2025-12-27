@@ -7,6 +7,8 @@ export interface HookContext {
   userId: string;
   mode: 'production' | 'test';
   triggerData: any;
+  siteUrl?: string;
+  siteName?: string;
 }
 
 export interface NodeContext extends HookContext {
@@ -640,11 +642,19 @@ export class WorkflowHooksService {
 
     const maxTokens = this.getValidatedMaxTokens(aiCreds.provider, configuredMaxTokens);
 
+    const startTime = Date.now();
+
+    // Enforce JSON output in system prompt
+    const jsonEnforcementPrompt = "IMPORTANT: You must always output valid JSON. Do not include markdown formatting like ```json ... ```, just return the raw JSON.";
+    const finalSystemPrompt = systemPrompt
+      ? `${systemPrompt}\n\n${jsonEnforcementPrompt}`
+      : jsonEnforcementPrompt;
+
     console.log(`Using AI provider: ${aiCreds.provider}`);
     console.log(`Model: ${aiCreds.model || '(OpenRouter will use default)'}`);
     console.log(`Temperature: ${temperature}`);
     console.log(`Max Tokens: ${maxTokens}${maxTokens !== configuredMaxTokens ? ` (capped from ${configuredMaxTokens})` : ''}`);
-    console.log(`System Prompt:`, systemPrompt || '(none)');
+    console.log(`System Prompt:`, finalSystemPrompt || '(none)');
     console.log(`Configured Prompt:`, configuredPrompt || '(none)');
     console.log(`Input Data:`, inputData ? JSON.stringify(inputData).substring(0, 100) + '...' : '(none)');
     console.log(`Final User Prompt (first 200 chars):`, userPrompt.substring(0, 200) + '...');
@@ -660,7 +670,9 @@ export class WorkflowHooksService {
 
         const messages: any[] = [];
         if (systemPrompt) {
-          messages.push({ role: 'system', content: systemPrompt });
+          messages.push({ role: 'system', content: finalSystemPrompt });
+        } else {
+          messages.push({ role: 'system', content: finalSystemPrompt });
         }
         messages.push({ role: 'user', content: userPrompt });
 
@@ -670,6 +682,7 @@ export class WorkflowHooksService {
           messages,
           temperature,
           max_tokens: maxTokens,
+          response_format: { type: "json_object" },
         });
 
         response = completion.choices[0]?.message?.content || '';
@@ -687,7 +700,7 @@ export class WorkflowHooksService {
             model: aiCreds.model || 'claude-3-haiku-20240307',
             max_tokens: maxTokens,
             temperature,
-            system: systemPrompt || undefined,
+            system: finalSystemPrompt || undefined,
             messages: [
               { role: 'user', content: userPrompt }
             ],
@@ -711,7 +724,9 @@ export class WorkflowHooksService {
           google_url = `https://generativelanguage.googleapis.com/v1/models/${aiCreds.model || 'gemini-pro'}:generateContent?key=${aiCreds.apiKey}`;
         }
 
-        const prompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
+
+
+        const prompt = finalSystemPrompt ? `${finalSystemPrompt}\n\n${userPrompt}` : userPrompt;
 
         console.log(`Sending to Google Gemini...`);
         console.log(`Endpoint: ${google_url}`);
@@ -778,7 +793,9 @@ export class WorkflowHooksService {
 
         const messages: any[] = [];
         if (systemPrompt) {
-          messages.push({ role: 'system', content: systemPrompt });
+          messages.push({ role: 'system', content: finalSystemPrompt });
+        } else {
+          messages.push({ role: 'system', content: finalSystemPrompt });
         }
 
         if (inputData?.multimedia && Array.isArray(inputData.multimedia)) {
@@ -821,6 +838,7 @@ export class WorkflowHooksService {
           messages,
           temperature,
           max_tokens: maxTokens,
+          response_format: { type: "json_object" },
         };
 
         if (aiCreds.top_p !== undefined) {
@@ -876,7 +894,10 @@ export class WorkflowHooksService {
         throw new Error(`Unsupported AI provider: ${aiCreds.provider}`);
       }
 
-      console.log(`AI processing complete!`);
+      const endTime = Date.now();
+      const executionTime = endTime - startTime;
+
+      console.log(`AI processing complete! Time: ${executionTime}ms`);
       console.log(`Response length: ${response.length} characters`);
       console.log(`Response preview:`, response.substring(0, 150) + '...');
 
@@ -885,13 +906,27 @@ export class WorkflowHooksService {
         const parsedJSON = this.extractJSONFromText(response);
         if (parsedJSON) {
           console.log(`Response successfully extracted and parsed as JSON`);
-          return parsedJSON;
+          // Merge execution time if parsedJSON is an object
+          if (typeof parsedJSON === 'object' && parsedJSON !== null && !Array.isArray(parsedJSON)) {
+            return { ...parsedJSON, executionTime };
+          }
+          // If array, wrap it
+          if (Array.isArray(parsedJSON)) {
+            return { data: parsedJSON, executionTime };
+          }
+          return { output: parsedJSON, executionTime };
         }
       } catch (e) {
         console.log(`Response is plain text (JSON extraction failed: ${e})`);
       }
 
-      return response;
+      // If parsing fails despite our best efforts (e.g. model failed to produce JSON),
+      // return structured error/text response
+      return {
+        response,
+        executionTime,
+        error: "Failed to parse JSON output"
+      };
 
     } catch (error: any) {
       console.error(`AI execution failed:`, error.message);
@@ -949,7 +984,8 @@ export class WorkflowHooksService {
     }
 
     // Strategy 2: Extract from Markdown code blocks (```json ... ```)
-    const markdownRegex = /```(?:json)?\s*([\s\S]*?)\s*```/g;
+    // Allow any language tag or no tag
+    const markdownRegex = /```[\w-]*\s*([\s\S]*?)\s*```/g;
     let match;
     while ((match = markdownRegex.exec(trimmed)) !== null) {
       if (match[1]) {
@@ -1104,7 +1140,7 @@ export class WorkflowHooksService {
             return result;
           });
 
-          const isMatch = (combineOperation === 'OR') ? results.some(r => r) : results.every(r => r);
+          const isMatch = (combineOperation === 'OR') ? results.some((r: boolean) => r) : results.every((r: boolean) => r);
           if (isMatch) passed.push(item);
           else failed.push(item);
         });
@@ -1327,8 +1363,8 @@ export class WorkflowHooksService {
         });
 
         return combineOperation === 'AND'
-          ? results.every(r => r)
-          : results.some(r => r);
+          ? results.every((r: boolean) => r)
+          : results.some((r: boolean) => r);
       };
 
       const passed = itemsToFilter.filter(filterFn);

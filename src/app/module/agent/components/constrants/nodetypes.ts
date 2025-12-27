@@ -1003,3 +1003,5 @@ export const getNodeTypeById = (id: string) => {
 export const getNodeTypeBySchemaType = (schemaType: string) => {
   return nodeTypes.find(node => node.schemaType === schemaType);
 };
+
+export type NodeTypeUI = typeof nodeTypes[number];

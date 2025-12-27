@@ -1,4 +1,3 @@
-// src/services/WorkflowExecutionService.ts (COMPLETELY FIXED - No Multiple Consumers)
 import { db } from '@/db';
 import {
   workflowExecutions,
@@ -949,7 +948,7 @@ export class WorkflowExecutionService {
     return {
       success: true,
       executionId: execution.id,
-      message: `Started workflow from ${targetNode.name}`
+      message: 'Workflow execution completed successfully'
     };
   }
 

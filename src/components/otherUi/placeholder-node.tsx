@@ -1,11 +1,11 @@
 "use client";
 import React, { forwardRef, type ReactNode } from "react";
-import {  
+import {
   Handle,
   Position,
   type NodeProps,
 } from "@xyflow/react";
-import { BaseNode } from "@/components/BaseNode";
+import { BaseNode } from "./base-node";
 import { Plus } from "lucide-react";
 
 export type PlaceholderNodeProps = Partial<NodeProps> & {
@@ -30,7 +30,7 @@ export const PlaceholderNode = forwardRef<HTMLDivElement, PlaceholderNodeProps>(
         {/* Name Area */}
         <div className="px-2 py-1.5 bg-white text-center border-t border-dashed border-gray-200">
           <div className="text-[10px] font-semibold text-gray-400 leading-tight">
-            {data?.label || "Add Node"}
+            {(data?.label as React.ReactNode) || "Add Node"}
           </div>
         </div>
         {children}

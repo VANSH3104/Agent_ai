@@ -105,7 +105,7 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
 
     if (data.Edges && Array.isArray(data.Edges)) {
       console.log('Loading edges:', data.Edges);
-      setEdges(data.Edges);
+      setEdges(data.Edges as any);
     }
   }, [data.Nodes, data.Edges]);
 

@@ -48,21 +48,19 @@ export const SlackView: React.FC<SlackViewProps> = ({ initialData = {}, onSave, 
     // TRPC hooks
     const trpc = useTRPC();
 
-    const existingCredentials = useQuery({
-        queryKey: ['slackCredentials'],
-        queryFn: () => trpc.credentials.getSlackCredentials.query(),
-    });
+    const existingCredentials = useQuery(
+        trpc.credentials.getSlackCredentials.queryOptions()
+    );
 
     const saveCredentialsMutation = useMutation({
-        mutationFn: (credentials: SlackCredentials) =>
-            trpc.credentials.saveSlackCredentials.mutate({ credentials }),
+        ...trpc.credentials.saveSlackCredentials.mutationOptions(),
         onSuccess: () => setCredentialsSaved(true),
     });
 
     // Load existing credentials
     useEffect(() => {
         if (existingCredentials?.data) {
-            const creds = existingCredentials.data;
+            const creds = existingCredentials.data as any;
             setSlackCreds({
                 botToken: creds.botToken || '',
                 workspaceId: creds.workspaceId || '',
@@ -88,7 +86,7 @@ export const SlackView: React.FC<SlackViewProps> = ({ initialData = {}, onSave, 
     };
 
     const handleSaveCredentials = () => {
-        saveCredentialsMutation.mutate(slackCreds);
+        saveCredentialsMutation.mutate({ credentials: slackCreds });
     };
 
     const handleSave = () => {

@@ -22,7 +22,7 @@ interface AgentProp {
   createdAt: string;
   updatedAt: string;
   userId?: string;
-  flowStatus?: string;
+  flowStatus?: string | null;
 }
 
 export const AgentCard = ({ agent }: { agent: AgentProp }) => {

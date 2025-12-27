@@ -86,7 +86,7 @@ export const DiscordView: React.FC<DiscordViewProps> = ({ initialData = {}, onSa
     useEffect(() => {
         if (existingCredentials?.data) {
             setDiscordCreds({
-                webhookUrl: existingCredentials.data.webhookUrl || '',
+                webhookUrl: (existingCredentials.data as any).webhookUrl || '',
             });
             setCredentialsSaved(true);
         }

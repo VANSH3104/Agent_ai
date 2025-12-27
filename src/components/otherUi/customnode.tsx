@@ -99,7 +99,7 @@ const WorkflowNode = memo(({
     });
 
     removeNodeMutation.mutate({
-      workflowId: data.workflowId,
+      workflowId: data.workflowId as string,
       nodeId: id
     });
   };
@@ -107,7 +107,7 @@ const WorkflowNode = memo(({
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (data?.onEdit) {
-      data.onEdit(id);
+      (data.onEdit as (id: string) => void)(id);
     }
   };
 
@@ -147,7 +147,7 @@ const WorkflowNode = memo(({
           {/* Node Name */}
           <div className="px-2 py-1.5 bg-white rounded-b-md text-center border-t-0">
             <div className="text-[10px] font-semibold text-gray-700 leading-tight line-clamp-2">
-              {data.label}
+              {data.label as React.ReactNode}
             </div>
           </div>
 
@@ -342,7 +342,7 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
     }
 
     removeNodeMutation.mutate({
-      workflowId: data.workflowId,
+      workflowId: data.workflowId as string,
       nodeId: id
     });
   };
@@ -350,7 +350,7 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (data?.onEdit) {
-      data.onEdit(id);
+      (data.onEdit as (id: string) => void)(id);
     }
   };
 
@@ -392,7 +392,7 @@ export const ConditionNode = memo(({ data, isConnectable, id }: NodeProps) => {
         {/* Node Name Below */}
         <div className="absolute bottom-0 left-0 right-0 text-center">
           <div className="text-[10px] font-semibold text-gray-700 bg-white px-1.5 py-1 rounded-md border border-gray-200 inline-block shadow-sm">
-            {data?.label || 'IF'}
+            {(data?.label as React.ReactNode) || 'IF'}
           </div>
         </div>
 
