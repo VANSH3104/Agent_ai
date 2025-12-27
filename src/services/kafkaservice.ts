@@ -17,9 +17,7 @@ export class KafkaService {
     this.kafka = new Kafka({
       clientId: 'workflow-engine',
       brokers: brokers,
-      ssl: process.env.KAFKA_SSL_CA
-        ? { ca: process.env.KAFKA_SSL_CA, rejectUnauthorized: false }
-        : true,
+      ssl: { rejectUnauthorized: false },
       sasl: {
         mechanism: SASL_MECHANISM,
         username: process.env.KAFKA_USERNAME || '',
