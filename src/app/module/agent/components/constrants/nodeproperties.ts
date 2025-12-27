@@ -8,7 +8,7 @@ import { ConditionView } from "../../Nodecomponents/condition/condition-view";
 import { ScheduleView } from "../../Nodecomponents/schedule/schedule-view";
 import { SlackView } from "../../Nodecomponents/slack/slack-view";
 import { DiscordView } from "../../Nodecomponents/discord/discord-view";
-import { WebhookView } from "../../Nodecomponents/webHook/webhook-view";
+import { WebhookView } from "../../Nodecomponents/webhook/webhook-view";
 import { CodeView } from "../../Nodecomponents/code/code-view";
 
 

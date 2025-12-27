@@ -95,7 +95,7 @@ export class KafkaService {
 
     try {
       const result = await this.producer.send({
-        topic: topicName,
+        topic: "test",
         messages: [{
           key,
           value: typeof message === 'string' ? message : JSON.stringify(message),
