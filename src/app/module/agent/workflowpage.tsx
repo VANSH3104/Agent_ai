@@ -5,8 +5,9 @@ import { NavbarWork } from './components/Navbar/navbarWork';
 import { NodeLibrary } from './components/NodeLibrary/Nodelibrary';
 import { Canvas } from './Canvas/Canvas';
 import { PropertiesPanel } from './PropertiesPanel/PropertiesPanel';
-import { useSuspenceAgentId, useUpdateNode } from '../Agents/server/hooks/agentHook';
+import { useSuspenceAgentId, useUpdateNode, useCreateNode } from '../Agents/server/hooks/agentHook';
 import { Node, Edge } from '@xyflow/react';
+import { toast } from 'sonner';
 import {
   Webhook,
   Play,
@@ -59,6 +60,7 @@ const iconMap: Record<string, any> = {
 export const WorkflowBuilder = ({ id }: { id: string }) => {
   const { data } = useSuspenceAgentId(id);
   const updateNode = useUpdateNode();
+  const createNodeMutation = useCreateNode();
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -157,23 +159,57 @@ export const WorkflowBuilder = ({ id }: { id: string }) => {
       y: Math.random() * 400 + 100
     };
 
+    const nodeDataWithWorkflowId = {
+      label: nodeType.name,
+      icon: nodeType.icon,
+      iconName: nodeType.iconName,
+      color: nodeType.color,
+      type: nodeType.id,
+      schemaType: nodeType.schemaType,
+      workflowId: id
+    };
+
     const newNode: Node = {
       id: tempId,
       type: nodeType.id,
       position: position,
-      data: {
-        label: nodeType.name,
-        icon: nodeType.icon,
-        iconName: nodeType.iconName,
-        color: nodeType.color,
-        type: nodeType.id,
-        schemaType: nodeType.schemaType
-      },
+      data: nodeDataWithWorkflowId,
     };
 
     setNodes((nds) => [...nds, newNode]);
     setIsSidebarOpen(false);
-  }, []);
+
+    createNodeMutation.mutate({
+      workflowId: id,
+      type: nodeType.schemaType || nodeType.id || 'MANUAL',
+      position: position,
+      data: nodeDataWithWorkflowId
+    }, {
+      onSuccess: (data) => {
+        console.log('Node saved successfully:', data);
+        setNodes((nds) =>
+          nds.map(node =>
+            node.id === tempId
+              ? {
+                ...node,
+                id: data.newNode.id,
+                data: {
+                  ...node.data,
+                  workflowId: id
+                }
+              }
+              : node
+          )
+        );
+        toast.success('Node added successfully');
+      },
+      onError: (error) => {
+        console.error('Failed to save node:', error);
+        setNodes((nds) => nds.filter(node => node.id !== tempId));
+        toast.error(`Failed to save node: ${error.message}`);
+      }
+    });
+  }, [id, createNodeMutation]);
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
