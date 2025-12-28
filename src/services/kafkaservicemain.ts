@@ -12,7 +12,7 @@ export class KafkaService {
   constructor() {
     this.kafka = new Kafka({
       clientId: 'workflow-engine',
-      brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
+      brokers: ('localhost:9092').split(','),
       retry: {
         retries: 5,
         initialRetryTime: 300,

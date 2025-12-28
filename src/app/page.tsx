@@ -26,7 +26,7 @@ export default function Home() {
           </nav>
           <div className="flex items-center gap-4">
             <Link
-              href="/dashboard"
+              href="/sign-in"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
             >
               Sign In
