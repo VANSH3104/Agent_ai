@@ -2,6 +2,15 @@
 
 Agent AI is a powerful, visual workflow automation platform designed to help you build, deploy, and manage intelligent agents. With a drag-and-drop interface, you can connect various services, integrate AI capabilities, and automate complex logic without writing extensive code.
 
+
+## Images 
+
+<img width="1470" height="881" alt="Screenshot 2025-12-27 at 10 37 55 PM" src="https://github.com/user-attachments/assets/452fdbf4-c1da-4d47-a27f-ac3f5cac7306" />
+<img width="1468" height="888" alt="Screenshot 2025-12-27 at 10 37 46 PM" src="https://github.com/user-attachments/assets/d2e12bf7-65dc-47a6-b60e-1735549bbd9e" />
+<img width="1460" height="884" alt="Screenshot 2025-12-27 at 10 37 34 PM" src="https://github.com/user-attachments/assets/9a8d9511-daec-4fb9-b395-c6ee061cf54a" />
+<img width="1468" height="875" alt="Screenshot 2025-12-27 at 10 37 10 PM" src="https://github.com/user-attachments/assets/3341b164-c891-4259-9d4f-f29354bf94f5" />
+
+
 ## 🚀 Features
 
 - **Visual Workflow Builder**: Intuitive node-based editor to design your agent's logic.
